@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>notehub</id>
+    <name>NoteHub</name>
+    <summary>Markdown notes with tasks, reminders and wikilinks</summary>
+    <summary lang="de">Markdown-Notizen mit Aufgaben, Erinnerungen und Wikilinks</summary>
+    <description><![CDATA[# NoteHub
+
+A powerful markdown note-taking app for Nextcloud that combines the best of Joplin and Obsidian.
+
+## Features
+- **Tasks & Reminders** – Interactive checkboxes with due dates and Nextcloud notifications
+- **Notebook Structure** – Organize notes in folders and notebooks
+- **Wikilinks** – Link notes with `[[Note Name]]` syntax and see backlinks
+- **Markdown Editor** – Comfortable editing with live preview
+
+All notes are stored as standard `.md` files in your Nextcloud file system.
+    ]]></description>
+    <version>0.2.0</version>
+    <licence>AGPL-3.0-or-later</licence>
+    <author>Ralf Völzke</author>
+    <namespace>NoteHub</namespace>
+    <category>office</category>
+    <category>organization</category>
+    <dependencies>
+        <php min-version="8.1" max-version="8.4" />
+        <nextcloud min-version="30" max-version="32" />
+    </dependencies>
+    <background-jobs>
+        <job>OCA\NoteHub\BackgroundJob\ReminderJob</job>
+        <job>OCA\NoteHub\BackgroundJob\IndexJob</job>
+    </background-jobs>
+    <navigations>
+        <navigation>
+            <name>NoteHub</name>
+            <route>notehub.page.index</route>
+            <icon>app.svg</icon>
+            <order>10</order>
+        </navigation>
+    </navigations>
+</info>
