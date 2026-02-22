@@ -1,5 +1,5 @@
 <template>
-    <NcContent app-name="notehub">
+    <NcContent app-name="notehub" :class="{ 'notehub-mobile': isMobile, 'notehub-mobile-editor': isMobile && mobileShowEditor }">
         <NcAppNavigation>
             <template #list>
                 <div class="notehub-new-buttons">
@@ -206,13 +206,15 @@
         <NcAppContent>
             <div v-if="currentNote" class="notehub-editor">
                 <div class="notehub-editor-header">
+                    <button v-if="isMobile"
+                            class="notehub-back-btn"
+                            @click="goBackToList">&#9664;</button>
                     <input
                         v-model="currentNote.title"
                         class="notehub-title-input"
                         type="text"
                         :placeholder="t('notehub', 'Titel der Notiz')"
                         :readonly="currentNoteReadonly"
-                        @input="isDirty = true"
                         @change="saveNote">
                     <span v-if="currentNoteReadonly" class="notehub-readonly-badge">
                         &#128274; {{ t('notehub', 'Nur Lesen') }}
@@ -636,9 +638,6 @@ export default {
             // Mobile
             mobileShowEditor: false,
             windowWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
-            // Save reliability
-            isDirty: false,
-            saveRetryCount: 0,
             buildVersion: typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : '',
             buildDate: typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : '',
         }
@@ -793,26 +792,6 @@ export default {
         this._onResize = () => { this.windowWidth = window.innerWidth }
         window.addEventListener('resize', this._onResize)
 
-        // Save on page close / tab switch
-        this._onBeforeUnload = (e) => {
-            if (this.isDirty) {
-                this.saveNoteSync()
-                e.preventDefault()
-                e.returnValue = ''
-            }
-        }
-        window.addEventListener('beforeunload', this._onBeforeUnload)
-
-        this._onVisibilityChange = () => {
-            if (document.hidden && this.isDirty) {
-                this.saveNote()
-            }
-        }
-        document.addEventListener('visibilitychange', this._onVisibilityChange)
-
-        // Restore from localStorage backup if available
-        this.restoreLocalBackup()
-
         // Ensure DB index is ready before loading data
         try {
             const status = await axios.get(generateUrl('/apps/notehub/api/index/status'))
@@ -839,16 +818,6 @@ export default {
     beforeDestroy() {
         if (this._onResize) {
             window.removeEventListener('resize', this._onResize)
-        }
-        if (this._onBeforeUnload) {
-            window.removeEventListener('beforeunload', this._onBeforeUnload)
-        }
-        if (this._onVisibilityChange) {
-            document.removeEventListener('visibilitychange', this._onVisibilityChange)
-        }
-        // Final save if dirty
-        if (this.isDirty) {
-            this.saveNoteSync()
         }
     },
 
@@ -1197,8 +1166,6 @@ export default {
         // ── Wikilink autocomplete ─────────────────────────
 
         onEditorInput() {
-            this.isDirty = true
-            this.saveLocalBackup()
             this.debouncedSave()
             this.checkWikilink()
         },
@@ -1516,42 +1483,17 @@ export default {
         // ── Note CRUD ─────────────────────────────────────
 
         async openNote(note) {
-            // Auto-save current note before switching
-            if (this.isDirty && this.currentNote) {
-                if (this.saveTimer) {
-                    clearTimeout(this.saveTimer)
-                    this.saveTimer = null
-                }
-                await this.saveNote()
-            }
             try {
                 const response = await axios.get(
                     generateUrl('/apps/notehub/api/notes/{id}', { id: note.id })
                 )
                 this.currentNote = response.data
-                // Restore from localStorage backup if newer
-                if (this._pendingBackup && this._pendingBackup.id === note.id) {
-                    const backup = this._pendingBackup
-                    this._pendingBackup = null
-                    if (backup.content && backup.content !== response.data.content) {
-                        this.currentNote.title = backup.title || this.currentNote.title
-                        this.currentNote.content = backup.content
-                        this.isDirty = true
-                        showSuccess(t('notehub', 'Nicht gespeicherte Änderungen wiederhergestellt'))
-                    } else {
-                        this.clearLocalBackup()
-                    }
-                } else {
-                    this.isDirty = false
-                    this.clearLocalBackup()
-                }
                 this.lastSaved = false
                 this.tagInput = ''
                 this.showTagSuggestions = false
                 this.showPreview = false
                 this.closeWikiDropdown()
                 this.loadBacklinks(note.id)
-                this.closeMobileSidebar()
                 if (this.isMobile) {
                     this.mobileShowEditor = true
                 }
@@ -1563,15 +1505,6 @@ export default {
 
         goBackToList() {
             this.mobileShowEditor = false
-        },
-
-        closeMobileSidebar() {
-            if (window.innerWidth < 1024) {
-                const nav = document.querySelector('.app-navigation')
-                if (nav) {
-                    nav.classList.add('app-navigation--close')
-                }
-            }
         },
 
         onNewNoteBlank() {
@@ -1600,7 +1533,6 @@ export default {
                 )
                 this.notes.push(response.data)
                 this.currentNote = response.data
-                this.closeMobileSidebar()
                 showSuccess(t('notehub', 'Notiz erstellt'))
             } catch (error) {
                 showError(t('notehub', 'Fehler beim Erstellen der Notiz'))
@@ -1620,7 +1552,6 @@ export default {
                 )
                 this.notes.push(response.data)
                 this.currentNote = response.data
-                this.closeMobileSidebar()
                 showSuccess(t('notehub', 'Aufgabe erstellt'))
             } catch (error) {
                 showError(t('notehub', 'Fehler beim Erstellen der Aufgabe'))
@@ -1636,7 +1567,6 @@ export default {
                 )
                 this.notes.push(response.data)
                 this.currentNote = response.data
-                this.closeMobileSidebar()
                 showSuccess(t('notehub', type === 'task' ? 'Aufgabe aus Vorlage erstellt' : 'Notiz aus Vorlage erstellt'))
             } catch (error) {
                 showError(t('notehub', 'Fehler beim Erstellen aus Vorlage'))
@@ -1807,7 +1737,7 @@ export default {
             this.saveNote()
         },
 
-        // ── Save with lock + queue + retry ──────────────
+        // ── Save with lock + queue ────────────────────────
 
         async saveNote() {
             if (!this.currentNote) return
@@ -1861,23 +1791,10 @@ export default {
                     })
                 }
                 this.lastSaved = true
-                this.isDirty = false
-                this.saveRetryCount = 0
-                this.clearLocalBackup()
                 this.loadBacklinks(this.currentNote.id)
             } catch (error) {
-                console.error('Save failed', error)
-                // Retry with exponential backoff (max 3 retries)
-                if (this.saveRetryCount < 3) {
-                    this.saveRetryCount++
-                    const delay = Math.min(1000 * Math.pow(2, this.saveRetryCount), 8000)
-                    console.warn('Retrying save in ' + delay + 'ms (attempt ' + this.saveRetryCount + ')')
-                    this.saving = false
-                    await new Promise(resolve => setTimeout(resolve, delay))
-                    return this.saveNote()
-                }
                 showError(t('notehub', 'Fehler beim Speichern'))
-                this.saveRetryCount = 0
+                console.error(error)
             } finally {
                 this.saving = false
                 // If changes came in during save, save again
@@ -1885,57 +1802,6 @@ export default {
                     this.savePending = false
                     this.$nextTick(() => this.saveNote())
                 }
-            }
-        },
-
-        // Save to localStorage on beforeunload (real save happens on next open)
-        saveNoteSync() {
-            if (!this.currentNote || this.currentNoteReadonly) return
-            this.saveLocalBackup()
-        },
-
-        // localStorage backup
-        saveLocalBackup() {
-            if (!this.currentNote) return
-            try {
-                localStorage.setItem('notehub-backup-id', String(this.currentNote.id))
-                localStorage.setItem('notehub-backup-title', this.currentNote.title || '')
-                localStorage.setItem('notehub-backup-content', this.currentNote.content || '')
-                localStorage.setItem('notehub-backup-time', String(Date.now()))
-            } catch (e) {
-                // localStorage full or unavailable
-            }
-        },
-
-        clearLocalBackup() {
-            try {
-                localStorage.removeItem('notehub-backup-id')
-                localStorage.removeItem('notehub-backup-title')
-                localStorage.removeItem('notehub-backup-content')
-                localStorage.removeItem('notehub-backup-time')
-            } catch (e) {
-                // ignore
-            }
-        },
-
-        restoreLocalBackup() {
-            try {
-                const backupId = localStorage.getItem('notehub-backup-id')
-                const backupTime = localStorage.getItem('notehub-backup-time')
-                if (!backupId || !backupTime) return
-                // Only restore if backup is less than 1 hour old
-                if (Date.now() - Number(backupTime) > 3600000) {
-                    this.clearLocalBackup()
-                    return
-                }
-                const title = localStorage.getItem('notehub-backup-title')
-                const content = localStorage.getItem('notehub-backup-content')
-                if (title || content) {
-                    console.info('NoteHub: Found unsaved backup for note ' + backupId + ', will restore on open')
-                    this._pendingBackup = { id: Number(backupId), title, content }
-                }
-            } catch (e) {
-                // ignore
             }
         },
 
@@ -2959,8 +2825,55 @@ export default {
     background: var(--color-error-light, rgba(220, 53, 69, 0.1));
 }
 
+/* ── Back button (mobile) ────────────────────────── */
+.notehub-back-btn {
+    display: none;
+}
+
 /* ── MOBILE RESPONSIVE ──────────────────────────── */
 @media (max-width: 767px) {
+    /* Hide Nextcloud sidebar on mobile when editor is shown */
+    .notehub-mobile-editor :deep(.app-navigation) {
+        display: none !important;
+    }
+    /* Show sidebar full width when no editor */
+    .notehub-mobile :deep(.app-navigation) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    /* Hide content area when sidebar is shown */
+    .notehub-mobile :deep(.app-content) {
+        display: none !important;
+    }
+    .notehub-mobile-editor :deep(.app-content) {
+        display: flex !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+
+    /* Back button visible on mobile */
+    .notehub-back-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border: none;
+        background: none;
+        color: var(--color-main-text);
+        font-size: 20px;
+        cursor: pointer;
+        border-radius: var(--border-radius);
+        flex-shrink: 0;
+    }
+    .notehub-back-btn:hover,
+    .notehub-back-btn:active {
+        background: var(--color-background-hover);
+    }
+
     /* Editor layout */
     .notehub-editor {
         padding: 10px 10px 10px 10px !important;
