@@ -35,5 +35,12 @@ return [
 
         ['name' => 'note#showSharedNote',   'url' => '/api/shared-notes/{id}', 'verb' => 'GET'],
         ['name' => 'note#updateSharedNote', 'url' => '/api/shared-notes/{id}', 'verb' => 'PUT'],
+
+        ['name' => 'note#uploadImage', 'url' => '/api/notes/{id}/upload-image', 'verb' => 'POST'],
+        ['name' => 'note#getImage',    'url' => '/api/images/{filename}',       'verb' => 'GET'],
+
+        ['name' => 'note#searchContacts', 'url' => '/api/contacts/search',        'verb' => 'GET'],
+        ['name' => 'note#contacts',       'url' => '/api/contacts',               'verb' => 'GET'],
+        ['name' => 'note#contactNotes',   'url' => '/api/contacts/{name}/notes',  'verb' => 'GET'],
     ],
 ];

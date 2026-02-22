@@ -17,7 +17,7 @@ A powerful markdown note-taking app for Nextcloud that combines the best of Jopl
 
 All notes are stored as standard `.md` files in your Nextcloud file system.
     ]]></description>
-    <version>0.2.0</version>
+    <version>0.2.10</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>Ralf Völzke</author>
     <namespace>NoteHub</namespace>

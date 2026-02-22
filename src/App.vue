@@ -1,5 +1,5 @@
 <template>
-    <NcContent app-name="notehub">
+    <NcContent app-name="notehub" :class="{ 'notehub-mobile': isMobile, 'notehub-mobile-editor': isMobile && mobileShowEditor }">
         <NcAppNavigation>
             <template #list>
                 <div class="notehub-new-buttons">
@@ -70,6 +70,29 @@
                     <button class="notehub-active-filter-clear" @click="clearTagFilter">&times;</button>
                 </div>
 
+                <div class="notehub-tags-header" @click="toggleContactsNav">
+                    <span class="notehub-tags-toggle">{{ contactsExpanded ? '&#9660;' : '&#9654;' }}</span>
+                    <span class="notehub-tags-label">&#128101; Kontakte ({{ allContacts.length }})</span>
+                </div>
+
+                <template v-if="contactsExpanded">
+                    <NcAppNavigationItem
+                        v-for="contact in allContacts"
+                        :key="'contact-' + contact.name"
+                        :name="contact.company ? contact.name + ' \u00b7 ' + contact.company : contact.name"
+                        :class="{ active: activeContact === contact.name }"
+                        @click="filterByContact(contact.name)">
+                        <template #counter>
+                            <span class="notehub-tag-count">{{ contact.count }}</span>
+                        </template>
+                    </NcAppNavigationItem>
+                </template>
+
+                <div v-if="activeContact" class="notehub-active-filter">
+                    <span>Kontakt: <strong>{{ activeContact }}</strong></span>
+                    <button class="notehub-active-filter-clear" @click="clearContactFilter">&times;</button>
+                </div>
+
                 <div class="notehub-tags-header" @click="toggleTemplatesNav">
                     <span class="notehub-tags-toggle">{{ templatesExpanded ? '&#9660;' : '&#9654;' }}</span>
                     <span class="notehub-tags-label">Vorlagen ({{ templates.length }})</span>
@@ -128,23 +151,20 @@
                     </NcAppNavigationItem>
                 </template>
 
-                <!-- Sort dropdown -->
-                <div class="notehub-sort-bar">
-                    <label class="notehub-sort-label" for="notehub-sort-select">Sortieren:</label>
-                    <select
-                        id="notehub-sort-select"
-                        v-model="sortMode"
-                        class="notehub-sort-select"
-                        @change="onSortChange">
-                        <option value="modified_desc">Zuletzt bearbeitet</option>
-                        <option value="modified_asc">Älteste Bearbeitung</option>
-                        <option value="title_asc">Titel A–Z</option>
-                        <option value="title_desc">Titel Z–A</option>
-                        <option value="created_desc">Neueste zuerst</option>
-                        <option value="created_asc">Älteste zuerst</option>
-                        <option value="due_asc">Fälligkeit</option>
-                        <option value="priority_desc">Priorität</option>
-                    </select>
+                <!-- Sort (collapsible) -->
+                <div class="notehub-tags-header" @click="toggleSortNav">
+                    <span class="notehub-tags-toggle">{{ sortExpanded ? '&#9660;' : '&#9654;' }}</span>
+                    <span class="notehub-tags-label">Sortieren: {{ sortModeLabel }}</span>
+                </div>
+                <div v-if="sortExpanded" class="notehub-sort-list">
+                    <div
+                        v-for="opt in sortOptions"
+                        :key="'sort-' + opt.value"
+                        class="notehub-sort-option"
+                        :class="{ 'notehub-sort-option--active': sortMode === opt.value }"
+                        @click="setSortMode(opt.value)">
+                        {{ opt.label }}
+                    </div>
                 </div>
 
                 <div v-if="syncing" class="notehub-sync-indicator">
@@ -186,6 +206,9 @@
         <NcAppContent>
             <div v-if="currentNote" class="notehub-editor">
                 <div class="notehub-editor-header">
+                    <button v-if="isMobile"
+                            class="notehub-back-btn"
+                            @click="goBackToList">&#9664;</button>
                     <input
                         v-model="currentNote.title"
                         class="notehub-title-input"
@@ -197,7 +220,7 @@
                         &#128274; {{ t('notehub', 'Nur Lesen') }}
                     </span>
                     <div class="notehub-editor-actions">
-                        <NcButton v-if="!currentNoteReadonly" variant="primary" :disabled="saving" @click="saveNote">
+                        <NcButton v-if="!currentNoteReadonly && !showPreview" variant="primary" :disabled="saving" @click="saveNote">
                             {{ t('notehub', 'Speichern') }}
                         </NcButton>
                         <button v-if="!currentNote.shared"
@@ -270,6 +293,35 @@
                             </div>
                         </div>
                     </div>
+                    <span v-for="(c, ci) in (currentNote.contacts || [])"
+                          :key="'c-' + (c.uid || ci)"
+                          class="notehub-contact-chip"
+                          :class="{ 'notehub-contact-clickable': !!c.uid }"
+                          @click="openContactCard(c)">
+                        &#128100; {{ c.name }}<span v-if="c.company" class="notehub-contact-company"> ({{ c.company }})</span>
+                        <button v-if="!currentNoteReadonly" class="notehub-tag-remove" @click.stop="removeContact(c)">&times;</button>
+                    </span>
+                    <div v-if="!currentNoteReadonly" class="notehub-tag-input-wrapper">
+                        <input
+                            ref="contactInput"
+                            v-model="contactInput"
+                            class="notehub-tag-input notehub-contact-input"
+                            type="text"
+                            :placeholder="t('notehub', '+ Kontakt')"
+                            @input="onContactInput"
+                            @keydown.enter.prevent="addContactFromInput"
+                            @focus="onContactInput"
+                            @blur="hideContactSuggestionsDelayed">
+                        <div v-if="showContactSuggestions && contactSuggestions.length > 0" class="notehub-tag-suggestions" :class="{ 'notehub-tag-suggestions--above': contactSuggestionsAbove }" ref="contactSuggestions">
+                            <div
+                                v-for="suggestion in contactSuggestions"
+                                :key="'cs-' + (suggestion.uid || suggestion.name)"
+                                class="notehub-tag-suggestion"
+                                @mousedown.prevent="addContact(suggestion)">
+                                {{ suggestion.name }}<span v-if="suggestion.company" class="notehub-contact-suggestion-detail"> &middot; {{ suggestion.company }}</span><span v-else-if="suggestion.email" class="notehub-contact-suggestion-detail"> &middot; {{ suggestion.email }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div v-if="currentNote.type === 'task' && currentNoteReadonly" class="notehub-task-bar notehub-task-bar--readonly">
@@ -339,7 +391,7 @@
                 </div>
 
                 <!-- Markdown Toolbar -->
-                <div v-if="!currentNoteReadonly" class="notehub-toolbar">
+                <div v-if="!currentNoteReadonly && !showPreview" class="notehub-toolbar">
                     <button class="notehub-toolbar-btn" title="Fett (Ctrl+B)" @click="toolbarWrap('**', '**', 'fett')"><b>B</b></button>
                     <button class="notehub-toolbar-btn" title="Kursiv (Ctrl+I)" @click="toolbarWrap('*', '*', 'kursiv')"><i>I</i></button>
                     <button class="notehub-toolbar-btn" title="Durchgestrichen" @click="toolbarWrap('~~', '~~', 'text')"><s>S</s></button>
@@ -356,10 +408,28 @@
                     <button class="notehub-toolbar-btn" title="Datum einf&#252;gen" @click="toolbarInsertDate()">&#128197;</button>
                     <button class="notehub-toolbar-btn" title="Datum + Uhrzeit" @click="toolbarInsertDatetime()">&#128336;</button>
                     <button class="notehub-toolbar-btn" title="Link einf&#252;gen" @click="toolbarInsertLink()">&#128279;</button>
+                    <span class="notehub-toolbar-sep"></span>
+                    <button class="notehub-toolbar-btn"
+                            title="Bild einfügen"
+                            @click="triggerImageUpload">&#128206;</button>
+                    <input ref="imageUpload"
+                           type="file"
+                           accept="image/*"
+                           style="display:none"
+                           @change="onImageFileSelected">
+                </div>
+
+                <div v-if="currentNote && !currentNoteReadonly" class="notehub-preview-bar">
+                    <button class="notehub-toolbar-btn notehub-preview-toggle"
+                            :class="{ active: showPreview }"
+                            @click="showPreview = !showPreview">
+                        {{ showPreview ? '&#9998; Bearbeiten' : '&#128065; Vorschau' }}
+                    </button>
                 </div>
 
                 <div class="notehub-editor-body">
                     <textarea
+                        v-if="!showPreview"
                         ref="editor"
                         v-model="currentNote.content"
                         class="notehub-content-input"
@@ -368,8 +438,14 @@
                         :readonly="currentNoteReadonly"
                         @input="onEditorInput"
                         @click="onEditorClick"
-                        @keydown="onEditorKeydown">
+                        @keydown="onEditorKeydown"
+                        @paste="onEditorPaste">
                     </textarea>
+                    <div v-else
+                         class="notehub-preview"
+                         v-html="renderedContent"
+                         @click="onPreviewClick">
+                    </div>
                     <div
                         v-if="showWikiDropdown && wikiMatches.length > 0"
                         class="notehub-wiki-dropdown"
@@ -482,6 +558,7 @@ import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import axios from '@nextcloud/axios'
 import { translate as t } from '@nextcloud/l10n'
+import MarkdownIt from 'markdown-it'
 
 export default {
     name: 'App',
@@ -522,6 +599,7 @@ export default {
             tasksExpanded: true,
             // Sort mode
             sortMode: 'modified_desc',
+            sortExpanded: false,
             // Wikilink autocomplete
             allTitles: [],
             showWikiDropdown: false,
@@ -547,6 +625,19 @@ export default {
             sharePermission: 1,
             shareLoading: false,
             shareTagMode: null,
+            showPreview: false,
+            // Contacts
+            allContacts: [],
+            contactsExpanded: false,
+            activeContact: null,
+            contactInput: '',
+            contactSuggestions: [],
+            showContactSuggestions: false,
+            contactSearchTimer: null,
+            contactSuggestionsAbove: false,
+            // Mobile
+            mobileShowEditor: false,
+            windowWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
             buildVersion: typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : '',
             buildDate: typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : '',
         }
@@ -594,6 +685,33 @@ export default {
             return notes
         },
 
+        sortModeLabel() {
+            const labels = {
+                modified_desc: 'Zuletzt bearbeitet',
+                modified_asc: 'Älteste Bearbeitung',
+                title_asc: 'Titel A\u2013Z',
+                title_desc: 'Titel Z\u2013A',
+                created_desc: 'Neueste zuerst',
+                created_asc: 'Älteste zuerst',
+                due_asc: 'Fälligkeit',
+                priority_desc: 'Priorität',
+            }
+            return labels[this.sortMode] || this.sortMode
+        },
+
+        sortOptions() {
+            return [
+                { value: 'modified_desc', label: 'Zuletzt bearbeitet' },
+                { value: 'modified_asc', label: 'Älteste Bearbeitung' },
+                { value: 'title_asc', label: 'Titel A\u2013Z' },
+                { value: 'title_desc', label: 'Titel Z\u2013A' },
+                { value: 'created_desc', label: 'Neueste zuerst' },
+                { value: 'created_asc', label: 'Älteste zuerst' },
+                { value: 'due_asc', label: 'Fälligkeit' },
+                { value: 'priority_desc', label: 'Priorität' },
+            ]
+        },
+
         remindDatetimeLocal() {
             if (!this.currentNote || !this.currentNote.remind) return ''
             const r = this.currentNote.remind
@@ -610,10 +728,50 @@ export default {
             }
         },
 
+        isMobile() {
+            return this.windowWidth < 768
+        },
+
         currentNoteReadonly() {
             if (!this.currentNote) return false
             if (this.currentNote.shared && (this.currentNote.permissions & 2) === 0) return true
             return false
+        },
+
+        renderedContent() {
+            if (!this.currentNote) return ''
+            const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
+
+            // Wikilinks: [[Titel]] → clickable link
+            md.renderer.rules.text = function(tokens, idx) {
+                const content = tokens[idx].content
+                // Split on wikilinks and escape non-link parts
+                const parts = content.split(/(\[\[[^\]]+\]\])/g)
+                return parts.map(part => {
+                    const m = part.match(/^\[\[([^\]]+)\]\]$/)
+                    if (m) {
+                        return '<a href="#" class="notehub-wikilink" data-title="' + md.utils.escapeHtml(m[1]) + '">' + md.utils.escapeHtml(m[1]) + '</a>'
+                    }
+                    return md.utils.escapeHtml(part)
+                }).join('')
+            }
+
+            // Relative images: images/xxx.png → API URL
+            const defaultImageRender = md.renderer.rules.image || function(tokens, idx, options, env, self) {
+                return self.renderToken(tokens, idx, options)
+            }
+            md.renderer.rules.image = function(tokens, idx, options, env, self) {
+                const token = tokens[idx]
+                const src = token.attrGet('src')
+                if (src && !src.startsWith('http') && !src.startsWith('/')) {
+                    // Strip "images/" prefix — route is /api/images/{filename}
+                    const filename = src.startsWith('images/') ? src.substring(7) : src
+                    token.attrSet('src', generateUrl('/apps/notehub/api/images/{filename}', { filename }))
+                }
+                return defaultImageRender(tokens, idx, options, env, self)
+            }
+
+            return md.render(this.currentNote.content || '')
         },
     },
 
@@ -623,6 +781,16 @@ export default {
         this.tasksExpanded = localStorage.getItem('notehub-tasks-expanded') !== 'false'
         this.backlinksExpanded = localStorage.getItem('notehub-backlinks-expanded') === 'true'
         this.sortMode = localStorage.getItem('notehub-sort-mode') || 'modified_desc'
+        const sortExpandedStored = localStorage.getItem('notehub-sort-expanded')
+        if (sortExpandedStored !== null) {
+            this.sortExpanded = sortExpandedStored === 'true'
+        } else {
+            this.sortExpanded = window.innerWidth > 767
+        }
+
+        // Mobile resize listener
+        this._onResize = () => { this.windowWidth = window.innerWidth }
+        window.addEventListener('resize', this._onResize)
 
         // Ensure DB index is ready before loading data
         try {
@@ -638,10 +806,19 @@ export default {
         }
         this.indexReady = true
 
+        this.contactsExpanded = localStorage.getItem('notehub-contacts-expanded') === 'true'
+
         await this.loadNotes()
         await this.loadTags()
         this.loadTitles()
         this.loadTemplates()
+        this.loadContacts()
+    },
+
+    beforeDestroy() {
+        if (this._onResize) {
+            window.removeEventListener('resize', this._onResize)
+        }
     },
 
     methods: {
@@ -678,6 +855,16 @@ export default {
 
         onSortChange() {
             localStorage.setItem('notehub-sort-mode', this.sortMode)
+        },
+
+        toggleSortNav() {
+            this.sortExpanded = !this.sortExpanded
+            localStorage.setItem('notehub-sort-expanded', String(this.sortExpanded))
+        },
+
+        setSortMode(value) {
+            this.sortMode = value
+            localStorage.setItem('notehub-sort-mode', value)
         },
 
         async refreshIndex() {
@@ -755,8 +942,12 @@ export default {
 
         filterByTag(tag) {
             this.activeTag = tag
+            this.activeContact = null
             this.searchQuery = ''
             this.searchResults = null
+            if (this.isMobile) {
+                this.mobileShowEditor = false
+            }
             this.loadNotes()
         },
 
@@ -764,6 +955,9 @@ export default {
             this.activeTag = null
             this.searchQuery = ''
             this.searchResults = null
+            if (this.isMobile) {
+                this.mobileShowEditor = false
+            }
             this.loadNotes()
         },
 
@@ -813,6 +1007,160 @@ export default {
             setTimeout(() => {
                 this.showTagSuggestions = false
             }, 200)
+        },
+
+        // ── Contacts navigation ──────────────────────────
+
+        toggleContactsNav() {
+            this.contactsExpanded = !this.contactsExpanded
+            localStorage.setItem('notehub-contacts-expanded', String(this.contactsExpanded))
+        },
+
+        async loadContacts() {
+            try {
+                const response = await axios.get(generateUrl('/apps/notehub/api/contacts'))
+                this.allContacts = response.data
+            } catch (error) {
+                console.error('Failed to load contacts', error)
+            }
+        },
+
+        async filterByContact(name) {
+            this.activeContact = name
+            this.activeTag = null
+            this.searchQuery = ''
+            this.searchResults = null
+            if (this.isMobile) {
+                this.mobileShowEditor = false
+            }
+            try {
+                const response = await axios.get(
+                    generateUrl('/apps/notehub/api/contacts/{name}/notes', { name })
+                )
+                this.notes = response.data
+            } catch (error) {
+                showError(t('notehub', 'Fehler beim Laden der Kontakt-Notizen'))
+                console.error(error)
+            }
+        },
+
+        clearContactFilter() {
+            this.activeContact = null
+            if (this.isMobile) {
+                this.mobileShowEditor = false
+            }
+            this.loadNotes()
+        },
+
+        // ── Contact chips ────────────────────────────────
+
+        onContactInput() {
+            const query = this.contactInput.trim()
+            if (!query || query.length < 1) {
+                this.contactSuggestions = []
+                this.showContactSuggestions = false
+                return
+            }
+            if (this.contactSearchTimer) {
+                clearTimeout(this.contactSearchTimer)
+            }
+            this.contactSearchTimer = setTimeout(() => {
+                this.searchAddressBook(query)
+            }, 300)
+        },
+
+        async searchAddressBook(query) {
+            try {
+                const response = await axios.get(
+                    generateUrl('/apps/notehub/api/contacts/search'),
+                    { params: { q: query } }
+                )
+                const currentContacts = this.currentNote ? (this.currentNote.contacts || []) : []
+                const currentNames = currentContacts.map(c => c.name)
+                this.contactSuggestions = response.data.filter(c => !currentNames.includes(c.name))
+                this.showContactSuggestions = this.contactSuggestions.length > 0
+                if (this.showContactSuggestions) {
+                    this.$nextTick(() => {
+                        this.positionContactSuggestions()
+                    })
+                }
+            } catch (error) {
+                console.error('Contact search failed', error)
+                this.contactSuggestions = []
+                this.showContactSuggestions = false
+            }
+        },
+
+        addContact(contact) {
+            if (!this.currentNote) return
+            const contacts = this.currentNote.contacts || []
+            // Deduplicate by UID if available, otherwise by name+company
+            const isDuplicate = contact.uid
+                ? contacts.some(c => c.uid === contact.uid)
+                : contacts.some(c => c.name === contact.name && (c.company || '') === (contact.company || ''))
+            if (isDuplicate) {
+                this.contactInput = ''
+                this.showContactSuggestions = false
+                showError(t('notehub', 'Kontakt bereits verknüpft'))
+                return
+            }
+            const newContact = { name: contact.name, company: contact.company || '' }
+            if (contact.uid) {
+                newContact.uid = contact.uid
+            }
+            this.$set(this.currentNote, 'contacts', [...contacts, newContact])
+            this.contactInput = ''
+            this.showContactSuggestions = false
+            this.saveNote().then(() => {
+                this.loadContacts()
+            })
+        },
+
+        addContactFromInput() {
+            const name = this.contactInput.trim()
+            if (!name) return
+            if (this.contactSuggestions.length > 0) {
+                this.addContact(this.contactSuggestions[0])
+            } else {
+                this.addContact({ name, company: '', uid: '' })
+            }
+        },
+
+        removeContact(contact) {
+            if (!this.currentNote) return
+            const contacts = (this.currentNote.contacts || []).filter(c => {
+                if (contact.uid && c.uid) return c.uid !== contact.uid
+                return c.name !== contact.name || (c.company || '') !== (contact.company || '')
+            })
+            this.$set(this.currentNote, 'contacts', contacts)
+            this.saveNote().then(() => {
+                this.loadContacts()
+            })
+        },
+
+        openContactCard(contact) {
+            if (!contact.uid) return
+            const url = generateUrl('/apps/contacts/All%20contacts/{uid}~contacts', { uid: contact.uid })
+            window.open(url, '_blank')
+        },
+
+        hideContactSuggestionsDelayed() {
+            setTimeout(() => {
+                this.showContactSuggestions = false
+                this.contactSuggestionsAbove = false
+            }, 200)
+        },
+
+        positionContactSuggestions() {
+            const dropdown = this.$refs.contactSuggestions
+            const input = this.$refs.contactInput
+            if (!dropdown || !input) return
+            const inputRect = input.getBoundingClientRect()
+            const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight
+            const spaceBelow = viewportHeight - inputRect.bottom
+            const spaceAbove = inputRect.top
+            // Flip above if less than 120px below and more space above
+            this.contactSuggestionsAbove = spaceBelow < 120 && spaceAbove > spaceBelow
         },
 
         // ── Wikilink autocomplete ─────────────────────────
@@ -904,6 +1252,73 @@ export default {
         onEditorKeydown(event) {
             if (event.key === 'Escape') {
                 this.closeWikiDropdown()
+            }
+        },
+
+        onPreviewClick(event) {
+            const link = event.target.closest('.notehub-wikilink')
+            if (link) {
+                event.preventDefault()
+                const title = link.dataset.title
+                this.openNoteByTitle(title)
+            }
+        },
+
+        async onEditorPaste(event) {
+            const items = event.clipboardData?.items
+            if (!items) return
+
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    event.preventDefault()
+                    const blob = item.getAsFile()
+                    if (!blob) return
+                    await this.uploadAndInsertImage(blob)
+                    return
+                }
+            }
+        },
+
+        triggerImageUpload() {
+            this.$refs.imageUpload?.click()
+        },
+
+        async onImageFileSelected(event) {
+            const file = event.target.files?.[0]
+            if (!file) return
+            await this.uploadAndInsertImage(file)
+            event.target.value = ''
+        },
+
+        async uploadAndInsertImage(blob) {
+            if (!this.currentNote) return
+            const formData = new FormData()
+            formData.append('image', blob, blob.name || 'paste.png')
+
+            try {
+                const response = await axios.post(
+                    generateUrl('/apps/notehub/api/notes/{id}/upload-image', { id: this.currentNote.id }),
+                    formData,
+                    { headers: { 'Content-Type': 'multipart/form-data' } }
+                )
+                const path = response.data.path
+                const markdown = '![Bild](' + path + ')'
+
+                // Insert at cursor position
+                const textarea = this.$refs.editor
+                if (textarea) {
+                    const start = textarea.selectionStart
+                    const before = this.currentNote.content.substring(0, start)
+                    const after = this.currentNote.content.substring(start)
+                    this.currentNote.content = before + markdown + '\n' + after
+                } else {
+                    this.currentNote.content += '\n' + markdown
+                }
+                this.debouncedSave()
+                showSuccess(t('notehub', 'Bild eingefügt'))
+            } catch (error) {
+                const msg = error?.response?.data?.error || error.message
+                showError(t('notehub', 'Bild-Upload fehlgeschlagen: ') + msg)
             }
         },
 
@@ -1076,12 +1491,20 @@ export default {
                 this.lastSaved = false
                 this.tagInput = ''
                 this.showTagSuggestions = false
+                this.showPreview = false
                 this.closeWikiDropdown()
                 this.loadBacklinks(note.id)
+                if (this.isMobile) {
+                    this.mobileShowEditor = true
+                }
             } catch (error) {
                 showError(t('notehub', 'Fehler beim &#214;ffnen der Notiz'))
                 console.error(error)
             }
+        },
+
+        goBackToList() {
+            this.mobileShowEditor = false
         },
 
         onNewNoteBlank() {
@@ -1335,6 +1758,7 @@ export default {
                     content: this.currentNote.content,
                     folder: this.currentNote.folder || '',
                     tags: this.currentNote.tags || [],
+                    contacts: this.currentNote.contacts || [],
                 }
 
                 if (this.currentNote.type === 'task') {
@@ -1363,6 +1787,7 @@ export default {
                         tags: response.data.tags,
                         remind: response.data.remind,
                         person: response.data.person,
+                        contacts: response.data.contacts,
                     })
                 }
                 this.lastSaved = true
@@ -1779,8 +2204,9 @@ export default {
     gap: 6px;
     margin-bottom: 6px;
     min-height: 28px;
-    flex-wrap: nowrap;
-    overflow: hidden;
+    flex-wrap: wrap;
+    overflow: visible;
+    position: relative;
 }
 .notehub-task-toggle-btn {
     font-size: 12px;
@@ -1857,9 +2283,9 @@ export default {
     background: var(--color-main-background);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    z-index: 100;
-    max-height: 150px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    max-height: 200px;
     overflow-y: auto;
 }
 
@@ -1867,10 +2293,48 @@ export default {
     padding: 6px 10px;
     cursor: pointer;
     font-size: 12px;
+    color: var(--color-main-text);
 }
 
 .notehub-tag-suggestion:hover {
     background: var(--color-background-hover);
+}
+
+.notehub-tag-suggestions--above {
+    top: auto !important;
+    bottom: 100%;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Contact chips */
+.notehub-contact-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--color-primary-element-light);
+    color: var(--color-main-text);
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.notehub-contact-clickable {
+    cursor: pointer;
+}
+
+.notehub-contact-clickable:hover {
+    background: var(--color-primary-element);
+    color: white;
+}
+
+.notehub-contact-company {
+    opacity: 0.7;
+    font-size: 11px;
+}
+
+.notehub-contact-suggestion-detail {
+    opacity: 0.6;
+    font-size: 11px;
 }
 
 /* Markdown Toolbar */
@@ -1909,6 +2373,81 @@ export default {
     height: 18px;
     background: var(--color-border);
     margin: 0 4px;
+}
+
+/* Preview bar + toggle */
+.notehub-preview-bar {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--color-border);
+}
+.notehub-preview-toggle {
+    width: auto !important;
+    padding: 2px 10px !important;
+    font-size: 13px;
+}
+.notehub-preview-toggle.active {
+    background: var(--color-primary-element);
+    color: white;
+}
+
+/* Markdown Preview */
+.notehub-preview {
+    padding: 16px 20px;
+    overflow-y: auto;
+    height: 100%;
+    line-height: 1.6;
+    border: 1px solid var(--color-border);
+    border-radius: 0 0 8px 8px;
+}
+.notehub-preview h1, .notehub-preview h2, .notehub-preview h3 {
+    margin: 1em 0 0.5em;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 4px;
+}
+.notehub-preview h1 { font-size: 1.8em; }
+.notehub-preview h2 { font-size: 1.4em; }
+.notehub-preview h3 { font-size: 1.2em; }
+.notehub-preview code {
+    background: var(--color-background-dark);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+.notehub-preview pre code {
+    display: block;
+    padding: 12px;
+    overflow-x: auto;
+}
+.notehub-preview blockquote {
+    border-left: 3px solid var(--color-primary-element);
+    margin: 0.5em 0;
+    padding: 4px 16px;
+    color: var(--color-text-maxcontrast);
+}
+.notehub-preview table {
+    border-collapse: collapse;
+    margin: 0.5em 0;
+}
+.notehub-preview th, .notehub-preview td {
+    border: 1px solid var(--color-border);
+    padding: 6px 12px;
+}
+.notehub-preview img {
+    max-width: 100%;
+    border-radius: 4px;
+}
+.notehub-preview a.notehub-wikilink {
+    color: var(--color-primary-element);
+    text-decoration: underline;
+    cursor: pointer;
+}
+.notehub-preview ul, .notehub-preview ol {
+    padding-left: 2em;
+}
+.notehub-preview hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 1em 0;
 }
 
 /* Editor body + Wikilink dropdown */
@@ -2119,42 +2658,24 @@ export default {
     font-weight: 500;
 }
 
-/* Sort dropdown */
-.notehub-sort-bar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    margin: 2px 0;
-    font-size: 12px;
-    color: var(--color-text-maxcontrast);
-    user-select: none;
+/* Sort list (collapsible) */
+.notehub-sort-list {
+    padding: 0 4px 4px;
 }
-.notehub-sort-label {
-    white-space: nowrap;
-    font-weight: 500;
+.notehub-sort-option {
+    padding: 4px 12px 4px 30px;
     font-size: 12px;
-    color: var(--color-text-maxcontrast);
-    flex-shrink: 0;
-}
-.notehub-sort-select {
-    flex: 1;
-    min-width: 0;
-    padding: 2px 4px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background: var(--color-main-background);
     color: var(--color-main-text);
-    font-size: 12px;
     cursor: pointer;
-    text-overflow: ellipsis;
+    border-radius: var(--border-radius);
 }
-.notehub-sort-select:focus {
-    border-color: var(--color-primary);
-    outline: none;
+.notehub-sort-option:hover {
+    background: var(--color-background-hover);
 }
-.notehub-sort-select:hover {
-    border-color: var(--color-primary-element-light);
+.notehub-sort-option--active {
+    font-weight: bold;
+    color: var(--color-primary-element);
+    background: var(--color-primary-element-light);
 }
 
 /* Backlinks */
@@ -2304,34 +2825,410 @@ export default {
     background: var(--color-error-light, rgba(220, 53, 69, 0.1));
 }
 
-/* Responsive: tablets and small desktops */
-@media (max-width: 768px) {
-    .notehub-editor {
-        padding: 16px 12px;
-    }
-    .notehub-task-bar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+/* ── Back button (mobile) ────────────────────────── */
+.notehub-back-btn {
+    display: none;
 }
 
-/* Responsive: phones */
-@media (max-width: 480px) {
+/* ── MOBILE RESPONSIVE ──────────────────────────── */
+@media (max-width: 767px) {
+    /* Hide Nextcloud sidebar on mobile when editor is shown */
+    .notehub-mobile-editor :deep(.app-navigation) {
+        display: none !important;
+    }
+    /* Show sidebar full width when no editor */
+    .notehub-mobile :deep(.app-navigation) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    /* Hide content area when sidebar is shown */
+    .notehub-mobile :deep(.app-content) {
+        display: none !important;
+    }
+    .notehub-mobile-editor :deep(.app-content) {
+        display: flex !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+
+    /* Back button visible on mobile */
+    .notehub-back-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border: none;
+        background: none;
+        color: var(--color-main-text);
+        font-size: 20px;
+        cursor: pointer;
+        border-radius: var(--border-radius);
+        flex-shrink: 0;
+    }
+    .notehub-back-btn:hover,
+    .notehub-back-btn:active {
+        background: var(--color-background-hover);
+    }
+
+    /* Editor layout */
     .notehub-editor {
-        padding: 10px 8px;
+        padding: 10px 10px 10px 10px !important;
+        height: calc(100vh - var(--header-height, 50px));
+    }
+
+    /* Editor header: compact */
+    .notehub-editor-header {
+        gap: 6px !important;
+        margin-bottom: 8px !important;
     }
     .notehub-title-input {
-        font-size: 1.2em;
+        font-size: 1.2em !important;
+        min-width: 0;
+        padding: 6px 4px !important;
     }
+    .notehub-editor-actions {
+        gap: 6px !important;
+        flex-shrink: 0;
+    }
+
+    /* Meta bar: wrap on mobile */
     .notehub-meta-bar {
-        flex-wrap: wrap;
-        overflow: visible;
+        flex-wrap: wrap !important;
+        overflow: visible !important;
+        gap: 4px !important;
     }
+
+    /* Task/Template buttons: bigger touch targets */
+    .notehub-task-toggle-btn {
+        min-height: 40px;
+        padding: 8px 14px !important;
+        font-size: 13px !important;
+    }
+
+    /* Tag chips: bigger for touch */
+    .notehub-tag-chip {
+        padding: 6px 12px !important;
+        font-size: 13px !important;
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+    }
+    .notehub-tag-remove {
+        padding: 0 6px !important;
+        font-size: 18px !important;
+        min-width: 28px;
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .notehub-tag-input {
+        min-height: 40px;
+        font-size: 15px !important;
+        padding: 6px 10px !important;
+    }
+
+    /* Task bar: vertical layout */
+    .notehub-task-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding: 10px !important;
+    }
+    .notehub-task-bar-item {
+        min-height: 40px;
+    }
+    .notehub-task-bar-item input[type="date"],
+    .notehub-task-bar-item input[type="text"] {
+        max-width: none !important;
+        flex: 1;
+        min-height: 40px;
+    }
+    .notehub-task-bar-item select {
+        min-height: 40px;
+        flex: 1;
+    }
+    .notehub-reminder-field {
+        flex-wrap: wrap;
+    }
+    .notehub-reminder-field input[type="datetime-local"] {
+        max-width: none !important;
+        flex: 1;
+        min-height: 40px;
+    }
+
+    /* Toolbar: horizontal scroll, no wrap */
+    .notehub-toolbar {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        border-radius: 8px 8px 0 0;
+    }
+    .notehub-toolbar::-webkit-scrollbar {
+        display: none;
+    }
+    .notehub-toolbar-btn {
+        min-width: 36px !important;
+        min-height: 36px !important;
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 15px !important;
+        flex-shrink: 0;
+    }
+    .notehub-toolbar-sep {
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    /* Preview toggle: bigger */
+    .notehub-preview-bar {
+        padding: 6px 8px !important;
+    }
+    .notehub-preview-toggle {
+        min-height: 36px !important;
+        padding: 4px 14px !important;
+        font-size: 14px !important;
+    }
+
+    /* Editor body */
+    .notehub-editor-body {
+        min-height: 0;
+        flex: 1 1 0;
+    }
+    .notehub-content-input {
+        font-size: 15px !important;
+        padding: 12px !important;
+        min-height: 50vh;
+    }
+    .notehub-preview {
+        padding: 12px 14px !important;
+        font-size: 15px;
+    }
+
+    /* Backlinks */
     .notehub-backlinks {
-        display: block;
+        flex-shrink: 0;
+    }
+    .notehub-backlinks-header {
+        min-height: 44px;
     }
     .notehub-backlinks-list {
-        max-height: 25vh;
+        max-height: 30vh;
+    }
+
+    /* Delete button: bigger touch target */
+    .notehub-delete-btn {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 18px !important;
+    }
+
+    /* Save indicator */
+    .notehub-save-indicator {
+        font-size: 11px;
+        margin-left: 4px !important;
+    }
+
+    /* Share overlay: below Nextcloud header */
+    .notehub-share-overlay {
+        top: var(--header-height, 50px) !important;
+        height: calc(100vh - var(--header-height, 50px)) !important;
+    }
+    /* Share dialog: full width */
+    .notehub-share-dialog {
+        width: 100% !important;
+        max-width: 100vw !important;
+        max-height: calc(100vh - var(--header-height, 50px)) !important;
+        border-radius: 0 !important;
+        height: calc(100vh - var(--header-height, 50px));
+        padding: 16px !important;
+    }
+    .notehub-share-close {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 26px !important;
+    }
+    .notehub-share-search {
+        min-height: 44px;
+        font-size: 16px !important;
+    }
+    .notehub-share-result {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        font-size: 15px !important;
+    }
+    .notehub-share-options {
+        flex-direction: column !important;
+    }
+    .notehub-share-perm-select {
+        width: 100%;
+        min-height: 44px;
+        font-size: 15px !important;
+    }
+    .notehub-share-item {
+        min-height: 44px;
+    }
+    .notehub-share-remove {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 22px !important;
+    }
+
+    /* Sidebar list entries: compact on mobile */
+    :deep(.app-navigation-entry) {
+        min-height: 36px !important;
+        height: auto !important;
+    }
+    :deep(.app-navigation-entry__name) {
+        font-size: 13px !important;
+    }
+    :deep(.app-navigation-entry a),
+    :deep(.app-navigation-entry .app-navigation-entry-link) {
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+        min-height: 36px !important;
+    }
+    :deep(.app-navigation-entry .app-navigation-entry__icon) {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+    }
+    :deep(.app-navigation-entry .app-navigation-entry__utils) {
+        font-size: 12px !important;
+    }
+
+    /* Sidebar section headers: compact on mobile */
+    .notehub-tags-header {
+        min-height: 32px;
+        padding: 4px 12px !important;
+        font-size: 13px !important;
+    }
+    .notehub-tags-toggle {
+        font-size: 8px !important;
+        width: 10px !important;
+    }
+    /* Sort list compact on mobile */
+    .notehub-sort-option {
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+        padding: 2px 12px 2px 24px !important;
+        font-size: 12px !important;
+    }
+    .notehub-notes-header {
+        min-height: 32px;
+        padding: 4px 12px 2px !important;
+    }
+    .notehub-refresh-btn {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 16px !important;
+    }
+    .notehub-search input {
+        min-height: 44px;
+        font-size: 16px !important;
+        padding: 8px 12px !important;
+    }
+    .notehub-search-clear {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 22px !important;
+    }
+    .notehub-new-buttons {
+        gap: 6px !important;
+    }
+    .notehub-active-filter {
+        min-height: 36px;
+        font-size: 14px !important;
+    }
+    .notehub-active-filter-clear {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 20px !important;
+    }
+    .notehub-tag-share-btn {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 16px !important;
+        opacity: 0.6;
+    }
+
+    /* Wikilink dropdown */
+    .notehub-wiki-dropdown {
+        max-width: calc(100vw - 40px);
+        min-width: 150px;
+    }
+    .notehub-wiki-match {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Tag & Contact suggestions */
+    .notehub-tag-suggestions {
+        max-height: 200px;
+        left: 0 !important;
+        right: 0 !important;
+        min-width: 0 !important;
+        width: calc(100vw - 40px) !important;
+        max-width: 100% !important;
+    }
+    .notehub-tag-suggestion {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+    }
+
+    /* Tag/Contact input wrappers: full width on mobile */
+    .notehub-tag-input-wrapper {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* Contact chips: touch-friendly */
+    .notehub-contact-chip {
+        padding: 6px 12px !important;
+        font-size: 13px !important;
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+    }
+    .notehub-contact-chip .notehub-tag-remove {
+        min-width: 28px;
+        min-height: 28px;
+        font-size: 18px !important;
+        padding: 0 4px !important;
+        margin-left: 4px;
+    }
+    .notehub-contact-company {
+        font-size: 11px !important;
+    }
+    .notehub-contact-input {
+        min-height: 40px !important;
+        font-size: 15px !important;
+    }
+    .notehub-contact-suggestion-detail {
+        font-size: 12px !important;
+    }
+
+    /* Version info */
+    .notehub-build-info {
+        font-size: 9px !important;
+        padding: 6px 12px !important;
+    }
+
+    /* Readonly badge */
+    .notehub-readonly-badge {
+        font-size: 11px !important;
+        padding: 2px 8px !important;
     }
 }
 

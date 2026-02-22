@@ -8,8 +8,11 @@ use OCA\NoteHub\AppInfo\Application;
 use OCA\NoteHub\Service\NoteService;
 use OCA\NoteHub\Service\IndexService;
 use OCA\NoteHub\Service\ShareService;
+use OCA\NoteHub\Service\ContactService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\JSONResponse;
+use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\Files\NotFoundException;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -18,6 +21,7 @@ class NoteController extends Controller {
     private NoteService $noteService;
     private IndexService $indexService;
     private ShareService $shareService;
+    private ContactService $contactService;
     private IUserSession $userSession;
 
     public function __construct(
@@ -25,12 +29,14 @@ class NoteController extends Controller {
         NoteService $noteService,
         IndexService $indexService,
         ShareService $shareService,
+        ContactService $contactService,
         IUserSession $userSession
     ) {
         parent::__construct(Application::APP_ID, $request);
         $this->noteService = $noteService;
         $this->indexService = $indexService;
         $this->shareService = $shareService;
+        $this->contactService = $contactService;
         $this->userSession = $userSession;
     }
 
@@ -146,7 +152,8 @@ class NoteController extends Controller {
         ?int $priority = null,
         ?array $tags = null,
         ?string $remind = null,
-        ?string $person = null
+        ?string $person = null,
+        ?array $contacts = null
     ): JSONResponse {
         $userId = $this->getUserId();
         if ($userId === null) {
@@ -155,7 +162,7 @@ class NoteController extends Controller {
         try {
             return new JSONResponse($this->noteService->update(
                 $id, $title, $content, $folder, $userId,
-                $type, $status, $due, $priority, $tags, $remind, $person
+                $type, $status, $due, $priority, $tags, $remind, $person, $contacts
             ));
         } catch (NotFoundException $e) {
             try {
@@ -372,6 +379,94 @@ class NoteController extends Controller {
             return new JSONResponse($this->shareService->readSharedNote($userId, $id));
         } catch (\Throwable $e) {
             return new JSONResponse(['error' => $e->getMessage()], 404);
+        }
+    }
+
+    // ── Contacts ──────────────────────────────────────────
+
+    /**
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function searchContacts(string $q = ''): JSONResponse {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new JSONResponse(['error' => 'Not authenticated'], 401);
+        }
+        try {
+            return new JSONResponse($this->contactService->searchContacts($q));
+        } catch (\Throwable $e) {
+            return new JSONResponse(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function contacts(): JSONResponse {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new JSONResponse(['error' => 'Not authenticated'], 401);
+        }
+        return new JSONResponse($this->noteService->getContacts($userId));
+    }
+
+    /**
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function contactNotes(string $name): JSONResponse {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new JSONResponse(['error' => 'Not authenticated'], 401);
+        }
+        return new JSONResponse($this->noteService->getNotesForContact($userId, $name));
+    }
+
+    // ── Image Upload ─────────────────────────────────────
+
+    /**
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function uploadImage(int $id): JSONResponse {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new JSONResponse(['error' => 'Not authenticated'], 401);
+        }
+        try {
+            $file = $this->request->getUploadedFile('image');
+            if ($file === null || $file['error'] !== UPLOAD_ERR_OK) {
+                return new JSONResponse(['error' => 'No image uploaded'], 400);
+            }
+            if ($file['size'] > 10 * 1024 * 1024) {
+                return new JSONResponse(['error' => 'File too large (max 10MB)'], 400);
+            }
+            $mime = $file['type'] ?? '';
+            if (!str_starts_with($mime, 'image/')) {
+                return new JSONResponse(['error' => 'Not an image'], 400);
+            }
+            $result = $this->noteService->uploadImage($userId, $file);
+            return new JSONResponse($result);
+        } catch (\Throwable $e) {
+            return new JSONResponse(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function getImage(string $filename): Response {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new JSONResponse(['error' => 'Not authenticated'], 401);
+        }
+        try {
+            return $this->noteService->getImage($userId, $filename);
+        } catch (\Throwable $e) {
+            return new JSONResponse(['error' => 'Image not found'], 404);
         }
     }
 

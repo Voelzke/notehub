@@ -10,6 +10,7 @@ use OCP\Files\IRootFolder;
 use OCP\Files\Folder;
 use OCP\Files\File;
 use OCP\Files\NotFoundException;
+use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\IDBConnection;
 
 class NoteService {
@@ -67,16 +68,17 @@ class NoteService {
 
         $yamlBlock = substr($rawContent, 4, $end - 4);
         $lines = explode("\n", $yamlBlock);
+        $lineCount = count($lines);
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '' || strpos($line, ':') === false) {
+        for ($i = 0; $i < $lineCount; $i++) {
+            $trimmed = trim($lines[$i]);
+            if ($trimmed === '' || strpos($trimmed, ':') === false) {
                 continue;
             }
 
-            $colonPos = strpos($line, ':');
-            $key = trim(substr($line, 0, $colonPos));
-            $value = trim(substr($line, $colonPos + 1));
+            $colonPos = strpos($trimmed, ':');
+            $key = trim(substr($trimmed, 0, $colonPos));
+            $value = trim(substr($trimmed, $colonPos + 1));
 
             switch ($key) {
                 case 'type':
@@ -108,6 +110,38 @@ class NoteService {
                 case 'template_name':
                     $meta[$key] = $value;
                     break;
+                case 'contacts':
+                    $contacts = [];
+                    $currentContact = null;
+                    while ($i + 1 < $lineCount) {
+                        $nextLine = $lines[$i + 1];
+                        if (preg_match('/^\s+- name:\s*(.+)$/', $nextLine, $m)) {
+                            if ($currentContact !== null) {
+                                $contacts[] = $currentContact;
+                            }
+                            $currentContact = ['name' => trim($m[1]), 'company' => '', 'uid' => ''];
+                            $i++;
+                        } elseif (preg_match('/^\s+company:\s*(.+)$/', $nextLine, $m)) {
+                            if ($currentContact !== null) {
+                                $currentContact['company'] = trim($m[1]);
+                            }
+                            $i++;
+                        } elseif (preg_match('/^\s+uid:\s*(.+)$/', $nextLine, $m)) {
+                            if ($currentContact !== null) {
+                                $currentContact['uid'] = trim($m[1]);
+                            }
+                            $i++;
+                        } elseif (trim($nextLine) === '') {
+                            $i++;
+                        } else {
+                            break;
+                        }
+                    }
+                    if ($currentContact !== null) {
+                        $contacts[] = $currentContact;
+                    }
+                    $meta['contacts'] = $contacts;
+                    break;
             }
         }
 
@@ -123,7 +157,7 @@ class NoteService {
         // If it's just a plain note with no task fields and not a template, skip frontmatter
         if ($type === 'note' && !$isTemplate) {
             $hasTaskFields = false;
-            foreach (['status', 'due', 'priority', 'tags', 'remind', 'person', 'start', 'reminded'] as $field) {
+            foreach (['status', 'due', 'priority', 'tags', 'remind', 'person', 'start', 'reminded', 'contacts'] as $field) {
                 if (isset($meta[$field]) && $meta[$field] !== '' && $meta[$field] !== [] && $meta[$field] !== 0) {
                     $hasTaskFields = true;
                     break;
@@ -168,6 +202,18 @@ class NoteService {
         if (isset($meta['template_name']) && $meta['template_name'] !== '') {
             $lines[] = 'template_name: ' . $meta['template_name'];
         }
+        if (!empty($meta['contacts'])) {
+            $lines[] = 'contacts:';
+            foreach ($meta['contacts'] as $contact) {
+                $lines[] = '  - name: ' . ($contact['name'] ?? '');
+                if (!empty($contact['company'])) {
+                    $lines[] = '    company: ' . $contact['company'];
+                }
+                if (!empty($contact['uid'])) {
+                    $lines[] = '    uid: ' . $contact['uid'];
+                }
+            }
+        }
 
         $lines[] = '---';
         $lines[] = '';
@@ -184,6 +230,11 @@ class NoteService {
         $tags = $row['tags'] ?? '[]';
         if (is_string($tags)) {
             $tags = json_decode($tags, true) ?: [];
+        }
+
+        $contacts = $row['contacts'] ?? '[]';
+        if (is_string($contacts)) {
+            $contacts = json_decode($contacts, true) ?: [];
         }
 
         return [
@@ -203,6 +254,7 @@ class NoteService {
             'template' => !empty($row['template']),
             'template_name' => $row['template_name'] ?? '',
             'shared' => !empty($row['shared']),
+            'contacts' => $contacts,
         ];
     }
 
@@ -397,6 +449,7 @@ class NoteService {
             'reminded' => !empty($meta['reminded']),
             'template' => !empty($meta['template']),
             'template_name' => $meta['template_name'] ?? '',
+            'contacts' => $meta['contacts'] ?? [],
         ];
     }
 
@@ -436,6 +489,7 @@ class NoteService {
             'person' => '',
             'start' => date('Y-m-d'),
             'reminded' => false,
+            'contacts' => [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
@@ -455,7 +509,8 @@ class NoteService {
         ?int $priority = null,
         ?array $tags = null,
         ?string $remind = null,
-        ?string $person = null
+        ?string $person = null,
+        ?array $contacts = null
     ): array {
         $notesFolder = $this->getNotesFolder($userId);
         $nodes = $notesFolder->getById($id);
@@ -500,6 +555,9 @@ class NoteService {
         if ($person !== null) {
             $meta['person'] = $person;
         }
+        if ($contacts !== null) {
+            $meta['contacts'] = $contacts;
+        }
 
         $fileContent = $this->buildFileContent($meta, $content);
         $file->putContent($fileContent);
@@ -527,6 +585,7 @@ class NoteService {
             'reminded' => !empty($meta['reminded']),
             'template' => !empty($meta['template']),
             'template_name' => $meta['template_name'] ?? '',
+            'contacts' => $meta['contacts'] ?? [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
@@ -576,6 +635,7 @@ class NoteService {
             'person' => $meta['person'] ?? '',
             'start' => $meta['start'] ?? '',
             'reminded' => !empty($meta['reminded']),
+            'contacts' => $meta['contacts'] ?? [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
@@ -623,6 +683,7 @@ class NoteService {
             'person' => $meta['person'] ?? '',
             'start' => $meta['start'] ?? '',
             'reminded' => !empty($meta['reminded']),
+            'contacts' => $meta['contacts'] ?? [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
@@ -667,6 +728,7 @@ class NoteService {
             'person' => $meta['person'] ?? '',
             'start' => $meta['start'] ?? '',
             'reminded' => !empty($meta['reminded']),
+            'contacts' => $meta['contacts'] ?? [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
@@ -744,6 +806,7 @@ class NoteService {
             'reminded' => true,
             'template' => !empty($meta['template']),
             'template_name' => $meta['template_name'] ?? '',
+            'contacts' => $meta['contacts'] ?? [],
         ]);
     }
 
@@ -769,9 +832,73 @@ class NoteService {
         }
         $result->closeCursor();
 
+        // Create default templates on first use
+        if (empty($templates)) {
+            $created = $this->ensureDefaultTemplates($userId);
+            if ($created > 0) {
+                // Re-query to include newly created templates
+                $qb2 = $this->db->getQueryBuilder();
+                $qb2->select('file_id', 'template_name', 'title')
+                    ->from(self::TABLE)
+                    ->where($qb2->expr()->eq('user_id', $qb2->createNamedParameter($userId)))
+                    ->andWhere($qb2->expr()->eq('template', $qb2->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+                $result2 = $qb2->executeQuery();
+                while ($row = $result2->fetch()) {
+                    $tplName = $row['template_name'] ?: $row['title'];
+                    $templates[] = [
+                        'id' => (int)$row['file_id'],
+                        'template_name' => $tplName,
+                    ];
+                }
+                $result2->closeCursor();
+            }
+        }
+
         usort($templates, fn($a, $b) => strcasecmp($a['template_name'], $b['template_name']));
 
         return $templates;
+    }
+
+    private function ensureDefaultTemplates(string $userId): int {
+        $folder = $this->getNotesFolder($userId);
+        $created = 0;
+
+        $defaults = [
+            '_template_neue_notiz.md' => "---\ntemplate: true\ntemplate_name: Neue Notiz\n---\n\n# Neue Notiz\n\n**Erstellt:** {{datetime}}\n\n---\n\n## Beschreibung\n\n",
+            '_template_tagebuch.md' => "---\ntemplate: true\ntemplate_name: Tagebuch-Eintrag\ntags: [tagebuch]\n---\n\n# Tagebuch {{date}}\n\n## Wie war mein Tag?\n\n\n## Was habe ich gelernt?\n\n\n## Wofür bin ich dankbar?\n\n",
+            '_template_meeting.md' => "---\ntemplate: true\ntemplate_name: Meeting-Protokoll\ntags: [meeting]\n---\n\n# Meeting-Protokoll {{date}}\n\n**Teilnehmer:**\n**Ort/Kanal:**\n\n---\n\n## Agenda\n\n\n## Beschlüsse\n\n\n## Offene Punkte\n\n- [ ] \n\n## Nächstes Meeting\n\n",
+            '_template_auftrag.md' => "---\ntemplate: true\ntemplate_name: Auftrag\ntags: [auftrag]\ntype: task\n---\n\n# Auftrag: \n\n**Erstellt:** {{datetime}}\n**Kunde:**\n**Ansprechpartner:**\n\n---\n\n## Beschreibung\n\n\n## Anforderungen\n\n- [ ] \n\n## Zeitplan\n\n\n## Kosten\n\n",
+            '_template_einkaufsliste.md' => "---\ntemplate: true\ntemplate_name: Einkaufsliste\ntags: [einkauf]\n---\n\n# Einkaufsliste {{date}}\n\n- [ ] \n- [ ] \n- [ ] \n- [ ] \n- [ ] \n\n",
+            '_template_projekt.md' => "---\ntemplate: true\ntemplate_name: Projekt-Notiz\ntags: [projekt]\n---\n\n# Projekt-Notiz\n\n**Erstellt:** {{datetime}}\n**Projekt:**\n\n---\n\n## Ziel\n\n\n## Status\n\n\n## Nächste Schritte\n\n- [ ] \n\n## Offene Fragen\n\n\n## Ressourcen / Links\n\n",
+        ];
+
+        foreach ($defaults as $filename => $content) {
+            if (!$folder->nodeExists($filename)) {
+                $file = $folder->newFile($filename, $content);
+                $parsed = $this->parseFrontmatter($content);
+                $meta = $parsed['meta'];
+                $this->indexService->syncSingle($userId, $file->getId(), [
+                    'id' => $file->getId(),
+                    'title' => substr($filename, 0, -3),
+                    'folder' => '',
+                    'modified' => $file->getMTime(),
+                    'type' => $meta['type'] ?? 'note',
+                    'status' => $meta['status'] ?? '',
+                    'due' => '',
+                    'priority' => 0,
+                    'tags' => $meta['tags'] ?? [],
+                    'remind' => '',
+                    'person' => '',
+                    'start' => date('Y-m-d'),
+                    'reminded' => false,
+                    'template' => true,
+                    'template_name' => $meta['template_name'] ?? '',
+                ]);
+                $created++;
+            }
+        }
+
+        return $created;
     }
 
     public function createFromTemplate(int $templateId, string $userId, string $type = 'note'): array {
@@ -832,6 +959,7 @@ class NoteService {
             'reminded' => false,
             'template' => false,
             'template_name' => '',
+            'contacts' => [],
         ];
 
         $this->indexService->syncSingle($userId, $newFile->getId(), $result);
@@ -878,6 +1006,7 @@ class NoteService {
             'reminded' => !empty($meta['reminded']),
             'template' => true,
             'template_name' => $meta['template_name'],
+            'contacts' => $meta['contacts'] ?? [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
@@ -924,11 +1053,118 @@ class NoteService {
             'reminded' => !empty($meta['reminded']),
             'template' => false,
             'template_name' => '',
+            'contacts' => $meta['contacts'] ?? [],
         ];
 
         $this->indexService->syncSingle($userId, $file->getId(), $result);
 
         return $result;
+    }
+
+    // ── Contacts queries ──────────────────────────────────
+
+    /**
+     * Get all distinct contacts across all notes for a user.
+     */
+    public function getContacts(string $userId): array {
+        $this->indexService->ensureSync($userId);
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('contacts')
+            ->from(self::TABLE)
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->andWhere($qb->expr()->eq('template', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)));
+
+        $result = $qb->executeQuery();
+        $contactMap = [];
+        while ($row = $result->fetch()) {
+            $contacts = json_decode($row['contacts'] ?? '[]', true) ?: [];
+            foreach ($contacts as $c) {
+                $name = $c['name'] ?? '';
+                if ($name === '') continue;
+                if (!isset($contactMap[$name])) {
+                    $contactMap[$name] = ['name' => $name, 'company' => $c['company'] ?? '', 'count' => 0];
+                }
+                $contactMap[$name]['count']++;
+                if (empty($contactMap[$name]['company']) && !empty($c['company'])) {
+                    $contactMap[$name]['company'] = $c['company'];
+                }
+            }
+        }
+        $result->closeCursor();
+
+        $contacts = array_values($contactMap);
+        usort($contacts, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+
+        return $contacts;
+    }
+
+    /**
+     * Get all notes linked to a specific contact name.
+     */
+    public function getNotesForContact(string $userId, string $contactName): array {
+        $this->indexService->ensureSync($userId);
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('*')
+            ->from(self::TABLE)
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->andWhere($qb->expr()->eq('template', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)));
+
+        $result = $qb->executeQuery();
+        $notes = [];
+        while ($row = $result->fetch()) {
+            $contacts = json_decode($row['contacts'] ?? '[]', true) ?: [];
+            foreach ($contacts as $c) {
+                if (($c['name'] ?? '') === $contactName) {
+                    $notes[] = $this->dbRowToNote($row);
+                    break;
+                }
+            }
+        }
+        $result->closeCursor();
+
+        return $notes;
+    }
+
+    // ── Image Upload ─────────────────────────────────────
+
+    public function uploadImage(string $userId, array $uploadedFile): array {
+        $folder = $this->getNotesFolder($userId);
+        $imagesFolder = $this->getOrCreateSubfolder($folder, 'images');
+
+        $ext = pathinfo($uploadedFile['name'] ?? 'image.png', PATHINFO_EXTENSION) ?: 'png';
+        $allowed = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
+        if (!in_array(strtolower($ext), $allowed)) {
+            $ext = 'png';
+        }
+
+        $filename = 'img_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . strtolower($ext);
+        $content = file_get_contents($uploadedFile['tmp_name']);
+        $imagesFolder->newFile($filename, $content);
+
+        return ['path' => 'images/' . $filename];
+    }
+
+    public function getImage(string $userId, string $filename): FileDisplayResponse {
+        $folder = $this->getNotesFolder($userId);
+
+        // Security: only filename, no path traversal
+        $safeName = basename($filename);
+        try {
+            $file = $folder->get('images/' . $safeName);
+        } catch (NotFoundException $e) {
+            throw new NotFoundException('Image not found');
+        }
+
+        if (!($file instanceof File)) {
+            throw new NotFoundException('Not a file');
+        }
+
+        $response = new FileDisplayResponse($file);
+        $response->addHeader('Content-Type', $file->getMimeType());
+        $response->cacheFor(3600);
+        return $response;
     }
 
     public function delete(int $id, string $userId): array {
@@ -1020,6 +1256,7 @@ class NoteService {
                         'person' => $meta['person'] ?? '',
                         'start' => $startVal,
                         'reminded' => !empty($meta['reminded']),
+                        'contacts' => $meta['contacts'] ?? [],
                     ];
                 }
             } elseif ($node instanceof Folder) {

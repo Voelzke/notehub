@@ -206,6 +206,7 @@ class IndexService {
             'start'         => $startVal,
             'template'      => !empty($meta['template']),
             'template_name' => $meta['template_name'] ?? '',
+            'contacts'      => $meta['contacts'] ?? [],
             'modified'      => $file->getMTime(),
         ];
 
@@ -263,6 +264,7 @@ class IndexService {
                         'start' => $startVal,
                         'template' => !empty($meta['template']),
                         'template_name' => $meta['template_name'] ?? '',
+                        'contacts' => $meta['contacts'] ?? [],
                         'modified' => $node->getMTime(),
                     ];
                 } catch (\Exception $e) {
@@ -301,16 +303,17 @@ class IndexService {
 
         $yamlBlock = substr($rawContent, 4, $end - 4);
         $lines = explode("\n", $yamlBlock);
+        $lineCount = count($lines);
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '' || strpos($line, ':') === false) {
+        for ($i = 0; $i < $lineCount; $i++) {
+            $trimmed = trim($lines[$i]);
+            if ($trimmed === '' || strpos($trimmed, ':') === false) {
                 continue;
             }
 
-            $colonPos = strpos($line, ':');
-            $key = trim(substr($line, 0, $colonPos));
-            $value = trim(substr($line, $colonPos + 1));
+            $colonPos = strpos($trimmed, ':');
+            $key = trim(substr($trimmed, 0, $colonPos));
+            $value = trim(substr($trimmed, $colonPos + 1));
 
             switch ($key) {
                 case 'type':
@@ -340,6 +343,38 @@ class IndexService {
                     break;
                 case 'template_name':
                     $meta[$key] = $value;
+                    break;
+                case 'contacts':
+                    $contacts = [];
+                    $currentContact = null;
+                    while ($i + 1 < $lineCount) {
+                        $nextLine = $lines[$i + 1];
+                        if (preg_match('/^\s+- name:\s*(.+)$/', $nextLine, $m)) {
+                            if ($currentContact !== null) {
+                                $contacts[] = $currentContact;
+                            }
+                            $currentContact = ['name' => trim($m[1]), 'company' => '', 'uid' => ''];
+                            $i++;
+                        } elseif (preg_match('/^\s+company:\s*(.+)$/', $nextLine, $m)) {
+                            if ($currentContact !== null) {
+                                $currentContact['company'] = trim($m[1]);
+                            }
+                            $i++;
+                        } elseif (preg_match('/^\s+uid:\s*(.+)$/', $nextLine, $m)) {
+                            if ($currentContact !== null) {
+                                $currentContact['uid'] = trim($m[1]);
+                            }
+                            $i++;
+                        } elseif (trim($nextLine) === '') {
+                            $i++;
+                        } else {
+                            break;
+                        }
+                    }
+                    if ($currentContact !== null) {
+                        $contacts[] = $currentContact;
+                    }
+                    $meta['contacts'] = $contacts;
                     break;
             }
         }
@@ -375,6 +410,11 @@ class IndexService {
             $tags = json_encode(array_values($tags));
         }
 
+        $contacts = $data['contacts'] ?? [];
+        if (is_array($contacts)) {
+            $contacts = json_encode($contacts);
+        }
+
         return [
             'file_id' => $data['file_id'] ?? ($data['id'] ?? 0),
             'title' => $data['title'] ?? '',
@@ -390,6 +430,7 @@ class IndexService {
             'start' => $data['start'] ?? '',
             'template' => !empty($data['template']),
             'template_name' => $data['template_name'] ?? '',
+            'contacts' => $contacts,
             'modified' => (int)($data['modified'] ?? 0),
         ];
     }
@@ -415,6 +456,7 @@ class IndexService {
                 'start' => $qb->createNamedParameter($row['start']),
                 'template' => $qb->createNamedParameter($row['template'], IQueryBuilder::PARAM_BOOL),
                 'template_name' => $qb->createNamedParameter($row['template_name']),
+                'contacts' => $qb->createNamedParameter($row['contacts'] ?? '[]'),
                 'modified' => $qb->createNamedParameter((int)$row['modified'], IQueryBuilder::PARAM_INT),
             ]);
         $qb->executeStatement();
@@ -438,6 +480,7 @@ class IndexService {
             ->set('start', $qb->createNamedParameter($row['start']))
             ->set('template', $qb->createNamedParameter($row['template'], IQueryBuilder::PARAM_BOOL))
             ->set('template_name', $qb->createNamedParameter($row['template_name']))
+            ->set('contacts', $qb->createNamedParameter($row['contacts'] ?? '[]'))
             ->set('modified', $qb->createNamedParameter((int)$row['modified'], IQueryBuilder::PARAM_INT))
             ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)));
         $qb->executeStatement();

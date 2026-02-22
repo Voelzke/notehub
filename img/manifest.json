@@ -1,0 +1,18 @@
+{
+    "name": "NoteHub",
+    "short_name": "NoteHub",
+    "description": "Markdown notes with tasks, reminders and wikilinks for Nextcloud",
+    "start_url": "/index.php/apps/notehub/",
+    "scope": "/index.php/apps/notehub/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0082c9",
+    "icons": [
+        {
+            "src": "/apps/notehub/img/app.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}
