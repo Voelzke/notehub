@@ -11,6 +11,7 @@ use OCP\BackgroundJob\TimedJob;
 use OCP\IUserManager;
 use OCP\Mail\IMailer;
 use OCP\Notification\IManager as INotificationManager;
+use OCP\L10N\IFactory as IL10NFactory;
 use Psr\Log\LoggerInterface;
 
 class ReminderJob extends TimedJob {
@@ -19,6 +20,7 @@ class ReminderJob extends TimedJob {
     private IMailer $mailer;
     private IUserManager $userManager;
     private LoggerInterface $logger;
+    private IL10NFactory $l10nFactory;
 
     public function __construct(
         ITimeFactory $time,
@@ -26,7 +28,8 @@ class ReminderJob extends TimedJob {
         INotificationManager $notificationManager,
         IMailer $mailer,
         IUserManager $userManager,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        IL10NFactory $l10nFactory
     ) {
         parent::__construct($time);
         $this->noteService = $noteService;
@@ -34,6 +37,7 @@ class ReminderJob extends TimedJob {
         $this->mailer = $mailer;
         $this->userManager = $userManager;
         $this->logger = $logger;
+        $this->l10nFactory = $l10nFactory;
 
         // Run every 5 minutes
         $this->setInterval(300);
@@ -99,16 +103,17 @@ class ReminderJob extends TimedJob {
         }
 
         try {
-            $subject = 'NoteHub Erinnerung: ' . $note['title'];
+            $l = $this->l10nFactory->get('notehub', $this->l10nFactory->getUserLanguage($user));
+            $subject = $l->t('NoteHub Reminder: %s', [$note['title']]);
 
-            $body = "Aufgabe: " . $note['title'] . "\n";
+            $body = $l->t('Task') . ": " . $note['title'] . "\n";
             if (!empty($note['due'])) {
-                $body .= "Fällig: " . $note['due'] . "\n";
+                $body .= $l->t('Due') . ": " . $note['due'] . "\n";
             }
             if (!empty($note['person'])) {
-                $body .= "Person: " . $note['person'] . "\n";
+                $body .= $l->t('Assignee') . ": " . $note['person'] . "\n";
             }
-            $body .= "\nDiese Erinnerung wurde von NoteHub gesendet.";
+            $body .= "\n" . $l->t('This reminder was sent by NoteHub.');
 
             $message = $this->mailer->createMessage();
             $message->setSubject($subject);

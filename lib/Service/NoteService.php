@@ -12,22 +12,26 @@ use OCP\Files\File;
 use OCP\Files\NotFoundException;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\IDBConnection;
+use OCP\L10N\IFactory as IL10NFactory;
 
 class NoteService {
     private IRootFolder $rootFolder;
     private IDBConnection $db;
     private IndexService $indexService;
+    private IL10NFactory $l10nFactory;
 
     private const TABLE = 'notehub_notes';
 
     public function __construct(
         IRootFolder $rootFolder,
         IDBConnection $db,
-        IndexService $indexService
+        IndexService $indexService,
+        IL10NFactory $l10nFactory
     ) {
         $this->rootFolder = $rootFolder;
         $this->db = $db;
         $this->indexService = $indexService;
+        $this->l10nFactory = $l10nFactory;
     }
 
     private function getNotesFolder(string $userId): Folder {
@@ -863,14 +867,28 @@ class NoteService {
         $folder = $this->getNotesFolder($userId);
         $created = 0;
 
-        $defaults = [
-            '_template_neue_notiz.md' => "---\ntemplate: true\ntemplate_name: Neue Notiz\n---\n\n# Neue Notiz\n\n**Erstellt:** {{datetime}}\n\n---\n\n## Beschreibung\n\n",
-            '_template_tagebuch.md' => "---\ntemplate: true\ntemplate_name: Tagebuch-Eintrag\ntags: [tagebuch]\n---\n\n# Tagebuch {{date}}\n\n## Wie war mein Tag?\n\n\n## Was habe ich gelernt?\n\n\n## Wofür bin ich dankbar?\n\n",
-            '_template_meeting.md' => "---\ntemplate: true\ntemplate_name: Meeting-Protokoll\ntags: [meeting]\n---\n\n# Meeting-Protokoll {{date}}\n\n**Teilnehmer:**\n**Ort/Kanal:**\n\n---\n\n## Agenda\n\n\n## Beschlüsse\n\n\n## Offene Punkte\n\n- [ ] \n\n## Nächstes Meeting\n\n",
-            '_template_auftrag.md' => "---\ntemplate: true\ntemplate_name: Auftrag\ntags: [auftrag]\ntype: task\n---\n\n# Auftrag: \n\n**Erstellt:** {{datetime}}\n**Kunde:**\n**Ansprechpartner:**\n\n---\n\n## Beschreibung\n\n\n## Anforderungen\n\n- [ ] \n\n## Zeitplan\n\n\n## Kosten\n\n",
-            '_template_einkaufsliste.md' => "---\ntemplate: true\ntemplate_name: Einkaufsliste\ntags: [einkauf]\n---\n\n# Einkaufsliste {{date}}\n\n- [ ] \n- [ ] \n- [ ] \n- [ ] \n- [ ] \n\n",
-            '_template_projekt.md' => "---\ntemplate: true\ntemplate_name: Projekt-Notiz\ntags: [projekt]\n---\n\n# Projekt-Notiz\n\n**Erstellt:** {{datetime}}\n**Projekt:**\n\n---\n\n## Ziel\n\n\n## Status\n\n\n## Nächste Schritte\n\n- [ ] \n\n## Offene Fragen\n\n\n## Ressourcen / Links\n\n",
-        ];
+        $lang = $this->l10nFactory->getUserLanguage(\OC::$server->getUserSession()->getUser());
+        $isDE = str_starts_with($lang, 'de');
+
+        if ($isDE) {
+            $defaults = [
+                '_template_neue_notiz.md' => "---\ntemplate: true\ntemplate_name: Neue Notiz\n---\n\n# Neue Notiz\n\n**Erstellt:** {{datetime}}\n\n---\n\n## Beschreibung\n\n",
+                '_template_tagebuch.md' => "---\ntemplate: true\ntemplate_name: Tagebuch-Eintrag\ntags: [tagebuch]\n---\n\n# Tagebuch {{date}}\n\n## Wie war mein Tag?\n\n\n## Was habe ich gelernt?\n\n\n## Wofür bin ich dankbar?\n\n",
+                '_template_meeting.md' => "---\ntemplate: true\ntemplate_name: Meeting-Protokoll\ntags: [meeting]\n---\n\n# Meeting-Protokoll {{date}}\n\n**Teilnehmer:**\n**Ort/Kanal:**\n\n---\n\n## Agenda\n\n\n## Beschlüsse\n\n\n## Offene Punkte\n\n- [ ] \n\n## Nächstes Meeting\n\n",
+                '_template_auftrag.md' => "---\ntemplate: true\ntemplate_name: Auftrag\ntags: [auftrag]\ntype: task\n---\n\n# Auftrag: \n\n**Erstellt:** {{datetime}}\n**Kunde:**\n**Ansprechpartner:**\n\n---\n\n## Beschreibung\n\n\n## Anforderungen\n\n- [ ] \n\n## Zeitplan\n\n\n## Kosten\n\n",
+                '_template_einkaufsliste.md' => "---\ntemplate: true\ntemplate_name: Einkaufsliste\ntags: [einkauf]\n---\n\n# Einkaufsliste {{date}}\n\n- [ ] \n- [ ] \n- [ ] \n- [ ] \n- [ ] \n\n",
+                '_template_projekt.md' => "---\ntemplate: true\ntemplate_name: Projekt-Notiz\ntags: [projekt]\n---\n\n# Projekt-Notiz\n\n**Erstellt:** {{datetime}}\n**Projekt:**\n\n---\n\n## Ziel\n\n\n## Status\n\n\n## Nächste Schritte\n\n- [ ] \n\n## Offene Fragen\n\n\n## Ressourcen / Links\n\n",
+            ];
+        } else {
+            $defaults = [
+                '_template_new_note.md' => "---\ntemplate: true\ntemplate_name: New Note\n---\n\n# New Note\n\n**Created:** {{datetime}}\n\n---\n\n## Description\n\n",
+                '_template_journal.md' => "---\ntemplate: true\ntemplate_name: Journal Entry\ntags: [journal]\n---\n\n# Journal {{date}}\n\n## How was my day?\n\n\n## What did I learn?\n\n\n## What am I grateful for?\n\n",
+                '_template_meeting.md' => "---\ntemplate: true\ntemplate_name: Meeting Notes\ntags: [meeting]\n---\n\n# Meeting Notes {{date}}\n\n**Attendees:**\n**Location/Channel:**\n\n---\n\n## Agenda\n\n\n## Decisions\n\n\n## Action Items\n\n- [ ] \n\n## Next Meeting\n\n",
+                '_template_assignment.md' => "---\ntemplate: true\ntemplate_name: Assignment\ntags: [assignment]\ntype: task\n---\n\n# Assignment: \n\n**Created:** {{datetime}}\n**Client:**\n**Contact:**\n\n---\n\n## Description\n\n\n## Requirements\n\n- [ ] \n\n## Timeline\n\n\n## Costs\n\n",
+                '_template_shopping_list.md' => "---\ntemplate: true\ntemplate_name: Shopping List\ntags: [shopping]\n---\n\n# Shopping List {{date}}\n\n- [ ] \n- [ ] \n- [ ] \n- [ ] \n- [ ] \n\n",
+                '_template_project.md' => "---\ntemplate: true\ntemplate_name: Project Notes\ntags: [project]\n---\n\n# Project Notes\n\n**Created:** {{datetime}}\n**Project:**\n\n---\n\n## Goal\n\n\n## Status\n\n\n## Next Steps\n\n- [ ] \n\n## Open Questions\n\n\n## Resources / Links\n\n",
+            ];
+        }
 
         foreach ($defaults as $filename => $content) {
             if (!$folder->nodeExists($filename)) {

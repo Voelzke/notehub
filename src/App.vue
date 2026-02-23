@@ -3,9 +3,9 @@
         <NcAppNavigation>
             <template #list>
                 <div class="notehub-new-buttons">
-                    <NcActions :menu-name="t('notehub', '+ Notiz')" type="secondary">
+                    <NcActions :menu-name="t('notehub', 'New note')" type="secondary">
                         <NcActionButton close-after-click @click="onNewNoteBlank">
-                            {{ t('notehub', 'Leere Notiz') }}
+                            {{ t('notehub', 'Empty note') }}
                         </NcActionButton>
                         <NcActionButton v-for="tpl in templates" :key="'n-'+tpl.id"
                             close-after-click @click="onNewFromTemplate(tpl.id, 'note')">
@@ -13,9 +13,9 @@
                         </NcActionButton>
                     </NcActions>
 
-                    <NcActions :menu-name="t('notehub', '+ Aufgabe')" type="secondary">
+                    <NcActions :menu-name="t('notehub', 'New task')" type="secondary">
                         <NcActionButton close-after-click @click="onNewTaskBlank">
-                            {{ t('notehub', 'Leere Aufgabe') }}
+                            {{ t('notehub', 'Empty task') }}
                         </NcActionButton>
                         <NcActionButton v-for="tpl in templates" :key="'t-'+tpl.id"
                             close-after-click @click="onNewFromTemplate(tpl.id, 'task')">
@@ -28,7 +28,7 @@
                     <input
                         v-model="searchQuery"
                         type="text"
-                        :placeholder="t('notehub', 'Suchen...')"
+                        :placeholder="t('notehub', 'Search...')"
                         @input="debouncedSearch">
                     <button v-if="searchQuery"
                             class="notehub-search-clear"
@@ -37,12 +37,12 @@
 
                 <div class="notehub-tags-header" @click="toggleTagsNav">
                     <span class="notehub-tags-toggle">{{ tagsExpanded ? '&#9660;' : '&#9654;' }}</span>
-                    <span class="notehub-tags-label">Tags ({{ allTags.length }})</span>
+                    <span class="notehub-tags-label">{{ t('notehub', 'Tags') }} ({{ allTags.length }})</span>
                 </div>
 
                 <template v-if="tagsExpanded">
                     <NcAppNavigationItem
-                        :name="t('notehub', 'Alle Notizen')"
+                        :name="t('notehub', 'All notes')"
                         :class="{ active: activeTag === null }"
                         @click="clearTagFilter">
                         <template #counter>
@@ -58,7 +58,7 @@
                         @click="filterByTag(tag.name)">
                         <template #counter>
                             <button class="notehub-tag-share-btn"
-                                    :title="t('notehub', 'Tag teilen')"
+                                    :title="t('notehub', 'Share tag')"
                                     @click.stop="shareTagNotes(tag.name)">&#128279;</button>
                             <span class="notehub-tag-count">{{ tag.count }}</span>
                         </template>
@@ -66,13 +66,13 @@
                 </template>
 
                 <div v-if="activeTag" class="notehub-active-filter">
-                    <span>Filter: <strong>{{ activeTag }}</strong></span>
+                    <span>{{ t('notehub', 'Filter:') }} <strong>{{ activeTag }}</strong></span>
                     <button class="notehub-active-filter-clear" @click="clearTagFilter">&times;</button>
                 </div>
 
                 <div class="notehub-tags-header" @click="toggleContactsNav">
                     <span class="notehub-tags-toggle">{{ contactsExpanded ? '&#9660;' : '&#9654;' }}</span>
-                    <span class="notehub-tags-label">&#128101; Kontakte ({{ allContacts.length }})</span>
+                    <span class="notehub-tags-label">&#128101; {{ t('notehub', 'Contacts') }} ({{ allContacts.length }})</span>
                 </div>
 
                 <template v-if="contactsExpanded">
@@ -89,13 +89,13 @@
                 </template>
 
                 <div v-if="activeContact" class="notehub-active-filter">
-                    <span>Kontakt: <strong>{{ activeContact }}</strong></span>
+                    <span>{{ t('notehub', 'Contact:') }} <strong>{{ activeContact }}</strong></span>
                     <button class="notehub-active-filter-clear" @click="clearContactFilter">&times;</button>
                 </div>
 
                 <div class="notehub-tags-header" @click="toggleTemplatesNav">
                     <span class="notehub-tags-toggle">{{ templatesExpanded ? '&#9660;' : '&#9654;' }}</span>
-                    <span class="notehub-tags-label">Vorlagen ({{ templates.length }})</span>
+                    <span class="notehub-tags-label">{{ t('notehub', 'Templates') }} ({{ templates.length }})</span>
                 </div>
 
                 <template v-if="templatesExpanded">
@@ -107,16 +107,16 @@
                         @click="openNote(tpl)">
                         <template #actions>
                             <NcActionButton close-after-click @click="deleteNote(tpl)">
-                                {{ t('notehub', 'L&#246;schen') }}
+                                {{ t('notehub', 'Delete') }}
                             </NcActionButton>
                         </template>
                     </NcAppNavigationItem>
                 </template>
 
-                <!-- Aufgaben (collapsible) -->
+                <!-- Tasks (collapsible) -->
                 <div class="notehub-tags-header" @click="toggleTasksNav">
                     <span class="notehub-tags-toggle">{{ tasksExpanded ? '&#9660;' : '&#9654;' }}</span>
-                    <span class="notehub-tags-label">&#9745; Aufgaben ({{ taskNotes.length }})</span>
+                    <span class="notehub-tags-label">&#9745; {{ t('notehub', 'Tasks') }} ({{ taskNotes.length }})</span>
                 </div>
 
                 <template v-if="tasksExpanded">
@@ -141,11 +141,11 @@
                                 @click.stop="toggleTaskInList(note)">
                         </template>
                         <template v-if="note.shared" #counter>
-                            <span class="notehub-shared-by">von {{ note.sharedByDisplayName }}</span>
+                            <span class="notehub-shared-by">{{ t('notehub', 'by') }} {{ note.sharedByDisplayName }}</span>
                         </template>
                         <template v-if="!note.shared" #actions>
                             <NcActionButton close-after-click @click="deleteNote(note)">
-                                {{ t('notehub', 'L&#246;schen') }}
+                                {{ t('notehub', 'Delete') }}
                             </NcActionButton>
                         </template>
                     </NcAppNavigationItem>
@@ -154,7 +154,7 @@
                 <!-- Sort (collapsible) -->
                 <div class="notehub-tags-header" @click="toggleSortNav">
                     <span class="notehub-tags-toggle">{{ sortExpanded ? '&#9660;' : '&#9654;' }}</span>
-                    <span class="notehub-tags-label">Sortieren: {{ sortModeLabel }}</span>
+                    <span class="notehub-tags-label">{{ t('notehub', 'Sort:') }} {{ sortModeLabel }}</span>
                 </div>
                 <div v-if="sortExpanded" class="notehub-sort-list">
                     <div
@@ -168,16 +168,16 @@
                 </div>
 
                 <div v-if="syncing" class="notehub-sync-indicator">
-                    {{ t('notehub', 'Synchronisiere Index...') }}
+                    {{ t('notehub', 'Synchronizing index...') }}
                 </div>
 
                 <div class="notehub-notes-header">
-                    <span class="notehub-notes-caption">Notizen</span>
+                    <span class="notehub-notes-caption">{{ t('notehub', 'Notes') }}</span>
                     <button class="notehub-refresh-btn"
                             :class="{ 'notehub-refreshing': syncing }"
                             :disabled="syncing"
                             @click="refreshIndex"
-                            title="Index synchronisieren">&#x1f504;</button>
+                            :title="t('notehub', 'Synchronize index')">&#x1f504;</button>
                 </div>
 
                 <NcAppNavigationItem
@@ -189,11 +189,11 @@
                     }"
                     @click="openNote(note)">
                     <template v-if="note.shared" #counter>
-                        <span class="notehub-shared-by">von {{ note.sharedByDisplayName }}</span>
+                        <span class="notehub-shared-by">{{ t('notehub', 'by') }} {{ note.sharedByDisplayName }}</span>
                     </template>
                     <template v-if="!note.shared" #actions>
                         <NcActionButton close-after-click @click="deleteNote(note)">
-                            {{ t('notehub', 'L&#246;schen') }}
+                            {{ t('notehub', 'Delete') }}
                         </NcActionButton>
                     </template>
                 </NcAppNavigationItem>
@@ -210,61 +210,61 @@
                         v-model="currentNote.title"
                         class="notehub-title-input"
                         type="text"
-                        :placeholder="t('notehub', 'Titel der Notiz')"
+                        :placeholder="t('notehub', 'Note title')"
                         :readonly="currentNoteReadonly"
                         @input="isDirty = true"
                         @change="saveNote">
                     <span v-if="currentNoteReadonly" class="notehub-readonly-badge">
-                        &#128274; {{ t('notehub', 'Nur Lesen') }}
+                        &#128274; {{ t('notehub', 'Read only') }}
                     </span>
                     <div class="notehub-editor-actions">
                         <NcButton v-if="!currentNoteReadonly && !showPreview" variant="primary" :disabled="saving" @click="saveNote">
-                            {{ t('notehub', 'Speichern') }}
+                            {{ t('notehub', 'Save') }}
                         </NcButton>
                         <button v-if="!currentNote.shared"
                                 class="notehub-delete-btn"
-                                :title="t('notehub', 'L&#246;schen')"
+                                :title="t('notehub', 'Delete')"
                                 @click="confirmDelete">
                             &#128465;
                         </button>
                         <span v-if="saving" class="notehub-save-indicator">
-                            {{ t('notehub', 'Speichert...') }}
+                            {{ t('notehub', 'Saving...') }}
                         </span>
                         <span v-else-if="lastSaved" class="notehub-save-indicator">
-                            {{ t('notehub', 'Gespeichert') }}
+                            {{ t('notehub', 'Saved') }}
                         </span>
                     </div>
                 </div>
 
                 <div v-if="currentNote.template" class="notehub-template-banner">
-                    VORLAGE
+                    {{ t('notehub', 'TEMPLATE') }}
                 </div>
 
                 <div class="notehub-meta-bar">
                     <button v-if="!currentNoteReadonly && currentNote.type !== 'task'"
                             class="notehub-task-toggle-btn"
                             @click="markAsTask">
-                        {{ t('notehub', 'Als Aufgabe markieren') }}
+                        {{ t('notehub', 'Mark as task') }}
                     </button>
                     <button v-if="!currentNoteReadonly && currentNote.type === 'task'"
                             class="notehub-task-toggle-btn notehub-task-toggle-btn--remove"
                             @click="unmarkTask">
-                        {{ t('notehub', 'Aufgabe entfernen') }}
+                        {{ t('notehub', 'Remove task') }}
                     </button>
                     <button v-if="!currentNoteReadonly && !currentNote.template"
                             class="notehub-task-toggle-btn"
                             @click="markAsTemplate">
-                        {{ t('notehub', 'Als Vorlage speichern') }}
+                        {{ t('notehub', 'Save as template') }}
                     </button>
                     <button v-if="!currentNoteReadonly && currentNote.template"
                             class="notehub-task-toggle-btn notehub-task-toggle-btn--remove"
                             @click="unmarkTemplate">
-                        {{ t('notehub', 'Vorlage entfernen') }}
+                        {{ t('notehub', 'Remove template') }}
                     </button>
                     <button v-if="!currentNoteReadonly"
                             class="notehub-task-toggle-btn"
                             @click="openShareDialog">
-                        &#128279; {{ t('notehub', 'Teilen') }}
+                        &#128279; {{ t('notehub', 'Share') }}
                     </button>
                     <span v-for="tag in (currentNote.tags || [])" :key="tag" class="notehub-tag-chip">
                         {{ tag }}
@@ -276,7 +276,7 @@
                             v-model="tagInput"
                             class="notehub-tag-input"
                             type="text"
-                            :placeholder="t('notehub', '+ Tag')"
+                            :placeholder="t('notehub', 'Add tag')"
                             @input="onTagInput"
                             @keydown.enter.prevent="addTag(tagInput)"
                             @focus="onTagInput"
@@ -305,7 +305,7 @@
                             v-model="contactInput"
                             class="notehub-tag-input notehub-contact-input"
                             type="text"
-                            :placeholder="t('notehub', '+ Kontakt')"
+                            :placeholder="t('notehub', 'Add contact')"
                             @input="onContactInput"
                             @keydown.enter.prevent="addContactFromInput"
                             @focus="onContactInput"
@@ -324,13 +324,13 @@
 
                 <div v-if="currentNote.type === 'task' && currentNoteReadonly" class="notehub-task-bar notehub-task-bar--readonly">
                     <span class="notehub-task-bar-item">
-                        {{ currentNote.status === 'done' ? '&#9745; ' + t('notehub', 'Erledigt') : '&#9744; ' + t('notehub', 'Offen') }}
+                        {{ currentNote.status === 'done' ? '&#9745; ' + t('notehub', 'Done') : '&#9744; ' + t('notehub', 'Open') }}
                     </span>
                     <span v-if="currentNote.due" class="notehub-task-bar-item">
-                        {{ t('notehub', 'Fällig') }}: {{ currentNote.due }}
+                        {{ t('notehub', 'Due') }}: {{ currentNote.due }}
                     </span>
                     <span v-if="currentNote.priority" class="notehub-task-bar-item">
-                        {{ t('notehub', 'Priorität') }}: {{ currentNote.priority === 1 ? t('notehub', 'Hoch') : currentNote.priority === 2 ? t('notehub', 'Mittel') : t('notehub', 'Niedrig') }}
+                        {{ t('notehub', 'Priority') }}: {{ currentNote.priority === 1 ? t('notehub', 'High') : currentNote.priority === 2 ? t('notehub', 'Medium') : t('notehub', 'Low') }}
                     </span>
                     <span v-if="currentNote.person" class="notehub-task-bar-item">
                         {{ currentNote.person }}
@@ -342,11 +342,11 @@
                             type="checkbox"
                             :checked="currentNote.status === 'done'"
                             @change="toggleCurrentTask">
-                        <span>{{ currentNote.status === 'done' ? t('notehub', 'Erledigt') : t('notehub', 'Offen') }}</span>
+                        <span>{{ currentNote.status === 'done' ? t('notehub', 'Done') : t('notehub', 'Open') }}</span>
                     </label>
 
                     <label class="notehub-task-bar-item">
-                        <span class="notehub-task-bar-label">{{ t('notehub', 'F&#228;llig') }}</span>
+                        <span class="notehub-task-bar-label">{{ t('notehub', 'Due') }}</span>
                         <input
                             type="date"
                             :value="currentNote.due"
@@ -354,19 +354,19 @@
                     </label>
 
                     <label class="notehub-task-bar-item">
-                        <span class="notehub-task-bar-label">{{ t('notehub', 'Priorit&#228;t') }}</span>
+                        <span class="notehub-task-bar-label">{{ t('notehub', 'Priority') }}</span>
                         <select
                             :value="currentNote.priority || 0"
                             @change="updateMeta('priority', parseInt($event.target.value))">
-                            <option :value="0">{{ t('notehub', 'Keine') }}</option>
-                            <option :value="1">{{ t('notehub', 'Hoch') }}</option>
-                            <option :value="2">{{ t('notehub', 'Mittel') }}</option>
-                            <option :value="3">{{ t('notehub', 'Niedrig') }}</option>
+                            <option :value="0">{{ t('notehub', 'None') }}</option>
+                            <option :value="1">{{ t('notehub', 'High') }}</option>
+                            <option :value="2">{{ t('notehub', 'Medium') }}</option>
+                            <option :value="3">{{ t('notehub', 'Low') }}</option>
                         </select>
                     </label>
 
                     <label class="notehub-task-bar-item">
-                        <span class="notehub-task-bar-label">{{ t('notehub', 'Person') }}</span>
+                        <span class="notehub-task-bar-label">{{ t('notehub', 'Assignee') }}</span>
                         <input
                             type="text"
                             :value="currentNote.person || ''"
@@ -376,39 +376,39 @@
                     <div class="notehub-task-bar-item notehub-reminder-field">
                         <span class="notehub-task-bar-label">
                             <span v-if="currentNote.remind" class="notehub-reminder-bell">&#128276;</span>
-                            {{ t('notehub', 'Erinnerung') }}
+                            {{ t('notehub', 'Reminder') }}
                         </span>
                         <input
                             type="datetime-local"
                             :value="remindDatetimeLocal"
                             @change="updateRemind($event.target.value)">
                         <span v-if="currentNote.reminded" class="notehub-reminded-badge">
-                            {{ t('notehub', 'gesendet') }}
+                            {{ t('notehub', 'sent') }}
                         </span>
                     </div>
                 </div>
 
                 <!-- Markdown Toolbar -->
                 <div v-if="!currentNoteReadonly && !showPreview" class="notehub-toolbar">
-                    <button class="notehub-toolbar-btn" title="Fett (Ctrl+B)" @click="toolbarWrap('**', '**', 'fett')"><b>B</b></button>
-                    <button class="notehub-toolbar-btn" title="Kursiv (Ctrl+I)" @click="toolbarWrap('*', '*', 'kursiv')"><i>I</i></button>
-                    <button class="notehub-toolbar-btn" title="Durchgestrichen" @click="toolbarWrap('~~', '~~', 'text')"><s>S</s></button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Bold (Ctrl+B)')" @click="toolbarWrap('**', '**', 'bold')"><b>B</b></button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Italic (Ctrl+I)')" @click="toolbarWrap('*', '*', 'italic')"><i>I</i></button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Strikethrough')" @click="toolbarWrap('~~', '~~', 'text')"><s>S</s></button>
                     <span class="notehub-toolbar-sep"></span>
-                    <button class="notehub-toolbar-btn" title="&#220;berschrift 1" @click="toolbarLinePrefix('# ')">H1</button>
-                    <button class="notehub-toolbar-btn" title="&#220;berschrift 2" @click="toolbarLinePrefix('## ')">H2</button>
-                    <button class="notehub-toolbar-btn" title="&#220;berschrift 3" @click="toolbarLinePrefix('### ')">H3</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Heading 1')" @click="toolbarLinePrefix('# ')">H1</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Heading 2')" @click="toolbarLinePrefix('## ')">H2</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Heading 3')" @click="toolbarLinePrefix('### ')">H3</button>
                     <span class="notehub-toolbar-sep"></span>
-                    <button class="notehub-toolbar-btn" title="Horizontale Linie" @click="toolbarInsertLine('---')">&#9472;</button>
-                    <button class="notehub-toolbar-btn" title="Aufz&#228;hlung" @click="toolbarLinePrefix('- ')">&#8226;</button>
-                    <button class="notehub-toolbar-btn" title="Nummerierung" @click="toolbarLinePrefix('1. ')">1.</button>
-                    <button class="notehub-toolbar-btn" title="Checkbox" @click="toolbarLinePrefix('- [ ] ')">&#9744;</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Horizontal line')" @click="toolbarInsertLine('---')">&#9472;</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Bullet list')" @click="toolbarLinePrefix('- ')">&#8226;</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Numbered list')" @click="toolbarLinePrefix('1. ')">1.</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Checkbox')" @click="toolbarLinePrefix('- [ ] ')">&#9744;</button>
                     <span class="notehub-toolbar-sep"></span>
-                    <button class="notehub-toolbar-btn" title="Datum einf&#252;gen" @click="toolbarInsertDate()">&#128197;</button>
-                    <button class="notehub-toolbar-btn" title="Datum + Uhrzeit" @click="toolbarInsertDatetime()">&#128336;</button>
-                    <button class="notehub-toolbar-btn" title="Link einf&#252;gen" @click="toolbarInsertLink()">&#128279;</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Insert date')" @click="toolbarInsertDate()">&#128197;</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Insert date & time')" @click="toolbarInsertDatetime()">&#128336;</button>
+                    <button class="notehub-toolbar-btn" :title="t('notehub', 'Insert link')" @click="toolbarInsertLink()">&#128279;</button>
                     <span class="notehub-toolbar-sep"></span>
                     <button class="notehub-toolbar-btn"
-                            title="Bild einfügen"
+                            :title="t('notehub', 'Insert image')"
                             @click="triggerImageUpload">&#128206;</button>
                     <input ref="imageUpload"
                            type="file"
@@ -421,7 +421,7 @@
                     <button class="notehub-toolbar-btn notehub-preview-toggle"
                             :class="{ active: showPreview }"
                             @click="showPreview = !showPreview">
-                        {{ showPreview ? '&#9998; Bearbeiten' : '&#128065; Vorschau' }}
+                        {{ showPreview ? '&#9998; ' + t('notehub', 'Edit') : '&#128065; ' + t('notehub', 'Preview') }}
                     </button>
                 </div>
 
@@ -432,7 +432,7 @@
                         v-model="currentNote.content"
                         class="notehub-content-input"
                         :class="{ 'notehub-readonly': currentNoteReadonly }"
-                        :placeholder="t('notehub', 'Schreibe hier deine Notiz in Markdown...')"
+                        :placeholder="t('notehub', 'Write your note in Markdown...')"
                         :readonly="currentNoteReadonly"
                         @input="onEditorInput"
                         @click="onEditorClick"
@@ -464,13 +464,13 @@
                     </div>
                     <div v-if="backlinksExpanded" class="notehub-backlinks-list">
                         <div v-if="backlinks.length === 0" class="notehub-backlinks-empty">
-                            {{ t('notehub', 'Keine Backlinks') }}
+                            {{ t('notehub', 'No backlinks') }}
                         </div>
                         <div v-for="bl in backlinks" :key="bl.noteId + '-' + bl.line"
                              class="notehub-backlink-item">
                             <div class="notehub-backlink-title">
                                 <a href="#" @click.prevent="openBacklink(bl.noteId)">{{ bl.title }}</a>
-                                <span class="notehub-backlink-line">{{ t('notehub', 'Zeile') }} {{ bl.line }}</span>
+                                <span class="notehub-backlink-line">{{ t('notehub', 'Line') }} {{ bl.line }}</span>
                             </div>
                             <div class="notehub-backlink-context" v-html="highlightWikilink(bl.context, currentNote.title)"></div>
                         </div>
@@ -479,8 +479,8 @@
             </div>
             <div v-else class="notehub-empty">
                 <div class="notehub-empty-content">
-                    <h2>{{ t('notehub', 'Willkommen bei NoteHub!') }}</h2>
-                    <p>{{ t('notehub', 'Erstelle eine neue Notiz oder w&#228;hle eine bestehende aus der Seitenleiste.') }}</p>
+                    <h2>{{ t('notehub', 'Welcome to NoteHub!') }}</h2>
+                    <p>{{ t('notehub', 'Create a new note or select an existing one from the sidebar.') }}</p>
                 </div>
             </div>
             <!-- Share Dialog -->
@@ -488,21 +488,21 @@
                 <div class="notehub-share-dialog">
                     <div class="notehub-share-dialog-header">
                         <h3 v-if="shareTagMode">
-                            {{ t('notehub', 'Tag teilen:') }} "{{ shareTagMode }}"
+                            {{ t('notehub', 'Share tag:') }} "{{ shareTagMode }}"
                         </h3>
                         <h3 v-else>
-                            {{ t('notehub', 'Teilen:') }} {{ shareDialogNote ? shareDialogNote.title : '' }}
+                            {{ t('notehub', 'Share:') }} {{ shareDialogNote ? shareDialogNote.title : '' }}
                         </h3>
                         <button class="notehub-share-close" @click="closeShareDialog">&times;</button>
                     </div>
 
                     <div v-if="!shareTagMode" class="notehub-share-list">
                         <div v-if="shareDialogShares.length === 0" class="notehub-share-empty">
-                            {{ t('notehub', 'Noch nicht geteilt') }}
+                            {{ t('notehub', 'Not shared yet') }}
                         </div>
                         <div v-for="s in shareDialogShares" :key="s.id" class="notehub-share-item">
                             <span class="notehub-share-user">{{ s.sharedWithDisplayName }}</span>
-                            <span class="notehub-share-perm">{{ (s.permissions & 2) === 0 ? t('notehub', 'Nur Lesen') : t('notehub', 'Lesen & Bearbeiten') }}</span>
+                            <span class="notehub-share-perm">{{ (s.permissions & 2) === 0 ? t('notehub', 'Read only') : t('notehub', 'Read & Edit') }}</span>
                             <button class="notehub-share-remove" @click="removeShare(s.id)">&times;</button>
                         </div>
                     </div>
@@ -512,7 +512,7 @@
                             v-model="shareUserQuery"
                             type="text"
                             class="notehub-share-search"
-                            :placeholder="t('notehub', 'Benutzer suchen...')"
+                            :placeholder="t('notehub', 'Search users...')"
                             @input="debouncedSearchUsers">
                         <div v-if="shareUserResults.length > 0" class="notehub-share-results">
                             <div v-for="u in shareUserResults" :key="u.id"
@@ -523,17 +523,17 @@
                         </div>
                         <div class="notehub-share-options">
                             <select v-model="sharePermission" class="notehub-share-perm-select">
-                                <option :value="1">{{ t('notehub', 'Nur Lesen') }}</option>
-                                <option :value="3">{{ t('notehub', 'Lesen & Bearbeiten') }}</option>
+                                <option :value="1">{{ t('notehub', 'Read only') }}</option>
+                                <option :value="3">{{ t('notehub', 'Read & Edit') }}</option>
                             </select>
                             <NcButton :disabled="shareLoading || !shareUserQuery"
                                       variant="primary"
                                       @click="addShare">
-                                {{ shareTagMode ? t('notehub', 'Alle teilen') : t('notehub', 'Teilen') }}
+                                {{ shareTagMode ? t('notehub', 'Share all') : t('notehub', 'Share') }}
                             </NcButton>
                         </div>
                         <div v-if="shareLoading" class="notehub-share-loading">
-                            {{ t('notehub', 'Wird geteilt...') }}
+                            {{ t('notehub', 'Sharing...') }}
                         </div>
                     </div>
                 </div>
@@ -688,28 +688,28 @@ export default {
 
         sortModeLabel() {
             const labels = {
-                modified_desc: 'Zuletzt bearbeitet',
-                modified_asc: 'Älteste Bearbeitung',
-                title_asc: 'Titel A\u2013Z',
-                title_desc: 'Titel Z\u2013A',
-                created_desc: 'Neueste zuerst',
-                created_asc: 'Älteste zuerst',
-                due_asc: 'Fälligkeit',
-                priority_desc: 'Priorität',
+                modified_desc: t('notehub', 'Last modified'),
+                modified_asc: t('notehub', 'Oldest modified'),
+                title_asc: t('notehub', 'Title A\u2013Z'),
+                title_desc: t('notehub', 'Title Z\u2013A'),
+                created_desc: t('notehub', 'Newest first'),
+                created_asc: t('notehub', 'Oldest first'),
+                due_asc: t('notehub', 'Due date'),
+                priority_desc: t('notehub', 'Priority'),
             }
             return labels[this.sortMode] || this.sortMode
         },
 
         sortOptions() {
             return [
-                { value: 'modified_desc', label: 'Zuletzt bearbeitet' },
-                { value: 'modified_asc', label: 'Älteste Bearbeitung' },
-                { value: 'title_asc', label: 'Titel A\u2013Z' },
-                { value: 'title_desc', label: 'Titel Z\u2013A' },
-                { value: 'created_desc', label: 'Neueste zuerst' },
-                { value: 'created_asc', label: 'Älteste zuerst' },
-                { value: 'due_asc', label: 'Fälligkeit' },
-                { value: 'priority_desc', label: 'Priorität' },
+                { value: 'modified_desc', label: t('notehub', 'Last modified') },
+                { value: 'modified_asc', label: t('notehub', 'Oldest modified') },
+                { value: 'title_asc', label: t('notehub', 'Title A\u2013Z') },
+                { value: 'title_desc', label: t('notehub', 'Title Z\u2013A') },
+                { value: 'created_desc', label: t('notehub', 'Newest first') },
+                { value: 'created_asc', label: t('notehub', 'Oldest first') },
+                { value: 'due_asc', label: t('notehub', 'Due date') },
+                { value: 'priority_desc', label: t('notehub', 'Priority') },
             ]
         },
 
@@ -931,7 +931,7 @@ export default {
                 const response = await axios.get(generateUrl('/apps/notehub/api/notes'), { params })
                 this.notes = response.data
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Laden der Notizen'))
+                showError(t('notehub', 'Error loading notes'))
                 console.error(error)
             }
         },
@@ -1070,7 +1070,7 @@ export default {
                 )
                 this.notes = response.data
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Laden der Kontakt-Notizen'))
+                showError(t('notehub', 'Error loading contact notes'))
                 console.error(error)
             }
         },
@@ -1132,7 +1132,7 @@ export default {
             if (isDuplicate) {
                 this.contactInput = ''
                 this.showContactSuggestions = false
-                showError(t('notehub', 'Kontakt bereits verknüpft'))
+                showError(t('notehub', 'Contact already linked'))
                 return
             }
             const newContact = { name: contact.name, company: contact.company || '' }
@@ -1335,7 +1335,7 @@ export default {
                     { headers: { 'Content-Type': 'multipart/form-data' } }
                 )
                 const path = response.data.path
-                const markdown = '![Bild](' + path + ')'
+                const markdown = '![Image](' + path + ')'
 
                 // Insert at cursor position
                 const textarea = this.$refs.editor
@@ -1348,10 +1348,10 @@ export default {
                     this.currentNote.content += '\n' + markdown
                 }
                 this.debouncedSave()
-                showSuccess(t('notehub', 'Bild eingefügt'))
+                showSuccess(t('notehub', 'Image inserted'))
             } catch (error) {
                 const msg = error?.response?.data?.error || error.message
-                showError(t('notehub', 'Bild-Upload fehlgeschlagen: ') + msg)
+                showError(t('notehub', 'Image upload failed: ') + msg)
             }
         },
 
@@ -1387,7 +1387,7 @@ export default {
             if (match) {
                 this.openNote(match)
             } else {
-                showError(t('notehub', 'Notiz nicht gefunden: ') + title)
+                showError(t('notehub', 'Note not found: ') + title)
             }
         },
 
@@ -1494,7 +1494,7 @@ export default {
             const textarea = this.$refs.editor
             if (!textarea) return
 
-            const url = prompt(t('notehub', 'URL eingeben:'), 'https://')
+            const url = prompt(t('notehub', 'Enter URL:'), 'https://')
             if (!url) return
 
             const start = textarea.selectionStart
@@ -1537,7 +1537,7 @@ export default {
                         this.currentNote.title = backup.title || this.currentNote.title
                         this.currentNote.content = backup.content
                         this.isDirty = true
-                        showSuccess(t('notehub', 'Nicht gespeicherte Änderungen wiederhergestellt'))
+                        showSuccess(t('notehub', 'Unsaved changes restored'))
                     } else {
                         this.clearLocalBackup()
                     }
@@ -1556,7 +1556,7 @@ export default {
                     this.mobileShowEditor = true
                 }
             } catch (error) {
-                showError(t('notehub', 'Fehler beim &#214;ffnen der Notiz'))
+                showError(t('notehub', 'Error opening note'))
                 console.error(error)
             }
         },
@@ -1575,14 +1575,14 @@ export default {
         },
 
         onNewNoteBlank() {
-            const title = prompt(t('notehub', 'Name der neuen Notiz:'), 'Neue Notiz')
+            const title = prompt(t('notehub', 'New note name:'), t('notehub', 'New note'))
             if (title !== null) {
                 this.onNewNote(title)
             }
         },
 
         onNewTaskBlank() {
-            const title = prompt(t('notehub', 'Name der neuen Aufgabe:'), 'Neue Aufgabe')
+            const title = prompt(t('notehub', 'New task name:'), t('notehub', 'New task'))
             if (title !== null) {
                 this.onNewTask(title)
             }
@@ -1590,7 +1590,7 @@ export default {
 
         async onNewNote(title) {
             if (!title || title.trim() === '') {
-                title = 'Neue Notiz'
+                title = t('notehub', 'New note')
             }
 
             try {
@@ -1601,16 +1601,16 @@ export default {
                 this.notes.push(response.data)
                 this.currentNote = response.data
                 this.closeMobileSidebar()
-                showSuccess(t('notehub', 'Notiz erstellt'))
+                showSuccess(t('notehub', 'Note created'))
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Erstellen der Notiz'))
+                showError(t('notehub', 'Error creating note'))
                 console.error(error)
             }
         },
 
         async onNewTask(title) {
             if (!title || title.trim() === '') {
-                title = 'Neue Aufgabe'
+                title = t('notehub', 'New task')
             }
 
             try {
@@ -1621,9 +1621,9 @@ export default {
                 this.notes.push(response.data)
                 this.currentNote = response.data
                 this.closeMobileSidebar()
-                showSuccess(t('notehub', 'Aufgabe erstellt'))
+                showSuccess(t('notehub', 'Task created'))
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Erstellen der Aufgabe'))
+                showError(t('notehub', 'Error creating task'))
                 console.error(error)
             }
         },
@@ -1637,9 +1637,9 @@ export default {
                 this.notes.push(response.data)
                 this.currentNote = response.data
                 this.closeMobileSidebar()
-                showSuccess(t('notehub', type === 'task' ? 'Aufgabe aus Vorlage erstellt' : 'Notiz aus Vorlage erstellt'))
+                showSuccess(type === 'task' ? t('notehub', 'Task created from template') : t('notehub', 'Note created from template'))
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Erstellen aus Vorlage'))
+                showError(t('notehub', 'Error creating from template'))
                 console.error(error)
             }
         },
@@ -1655,7 +1655,7 @@ export default {
 
         async markAsTemplate() {
             if (!this.currentNote) return
-            const name = prompt(t('notehub', 'Name der Vorlage:'), this.currentNote.title)
+            const name = prompt(t('notehub', 'Template name:'), this.currentNote.title)
             if (name === null) return
             try {
                 const response = await axios.put(
@@ -1666,7 +1666,7 @@ export default {
                 this.notes = this.notes.filter(n => n.id !== this.currentNote.id)
                 this.loadTemplates()
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Speichern als Vorlage'))
+                showError(t('notehub', 'Error saving as template'))
                 console.error(error)
             }
         },
@@ -1695,7 +1695,7 @@ export default {
                 })
                 this.loadTemplates()
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Entfernen der Vorlage'))
+                showError(t('notehub', 'Error removing template'))
                 console.error(error)
             }
         },
@@ -1713,7 +1713,7 @@ export default {
                     this.currentNote = { ...this.currentNote, ...response.data }
                 }
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Umschalten der Aufgabe'))
+                showError(t('notehub', 'Error toggling task'))
                 console.error(error)
             }
         },
@@ -1730,7 +1730,7 @@ export default {
                     this.$set(this.notes, idx, { ...this.notes[idx], status: response.data.status })
                 }
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Umschalten der Aufgabe'))
+                showError(t('notehub', 'Error toggling task'))
                 console.error(error)
             }
         },
@@ -1771,7 +1771,7 @@ export default {
                     this.$set(this.notes, idx, { ...this.notes[idx], ...response.data })
                 }
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Markieren als Aufgabe'))
+                showError(t('notehub', 'Error marking as task'))
                 console.error(error)
             }
         },
@@ -1788,7 +1788,7 @@ export default {
                     this.$set(this.notes, idx, { ...this.notes[idx], ...response.data })
                 }
             } catch (error) {
-                showError(t('notehub', 'Fehler beim Entfernen der Aufgabe'))
+                showError(t('notehub', 'Error removing task'))
                 console.error(error)
             }
         },
@@ -1876,7 +1876,7 @@ export default {
                     await new Promise(resolve => setTimeout(resolve, delay))
                     return this.saveNote()
                 }
-                showError(t('notehub', 'Fehler beim Speichern'))
+                showError(t('notehub', 'Error saving'))
                 this.saveRetryCount = 0
             } finally {
                 this.saving = false
@@ -2005,14 +2005,14 @@ export default {
                 )
                 this.searchResults = response.data
             } catch (error) {
-                showError(t('notehub', 'Fehler bei der Suche'))
+                showError(t('notehub', 'Search error'))
                 console.error(error)
             }
         },
 
         confirmDelete() {
             if (!this.currentNote) return
-            if (!confirm(t('notehub', 'Notiz wirklich l\u00f6schen?'))) return
+            if (!confirm(t('notehub', 'Really delete this note?'))) return
             this.deleteNote(this.currentNote)
         },
 
@@ -2025,11 +2025,11 @@ export default {
                 if (this.currentNote && this.currentNote.id === note.id) {
                     this.currentNote = null
                 }
-                showSuccess(t('notehub', 'Notiz gel\u00f6scht'))
+                showSuccess(t('notehub', 'Note deleted'))
                 this.loadTags()
                 this.loadTemplates()
             } catch (error) {
-                showError(t('notehub', 'Fehler beim L\u00f6schen'))
+                showError(t('notehub', 'Error deleting'))
                 console.error(error)
             }
         },
@@ -2064,8 +2064,8 @@ export default {
                 )
                 this.shareDialogShares = response.data
             } catch (error) {
-                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unbekannter Fehler'
-                showError(t('notehub', 'Fehler beim Laden der Freigaben: ') + msg)
+                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unknown error'
+                showError(t('notehub', 'Error loading shares: ') + msg)
                 console.error('Share error:', error.response?.status, error.response?.data, error)
             }
         },
@@ -2091,8 +2091,8 @@ export default {
                 )
                 this.shareUserResults = response.data
             } catch (error) {
-                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unbekannter Fehler'
-                showError(t('notehub', 'Fehler bei der Benutzersuche: ') + msg)
+                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unknown error'
+                showError(t('notehub', 'Error searching users: ') + msg)
                 console.error('Share error:', error.response?.status, error.response?.data, error)
             }
         },
@@ -2120,7 +2120,7 @@ export default {
                 this.shareDialogShares.push(response.data)
                 this.shareUserQuery = ''
                 this.shareUserResults = []
-                showSuccess(t('notehub', 'Erfolgreich geteilt'))
+                showSuccess(t('notehub', 'Shared successfully'))
                 // Update shared flag in local notes
                 const idx = this.notes.findIndex(n => n.id === this.shareDialogNote.id)
                 if (idx !== -1) {
@@ -2130,8 +2130,8 @@ export default {
                     this.$set(this.currentNote, 'shared', true)
                 }
             } catch (error) {
-                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unbekannter Fehler'
-                showError(t('notehub', 'Fehler beim Teilen: ') + msg)
+                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unknown error'
+                showError(t('notehub', 'Error sharing: ') + msg)
                 console.error('Share error:', error.response?.status, error.response?.data, error)
             }
             this.shareLoading = false
@@ -2143,7 +2143,7 @@ export default {
                     generateUrl('/apps/notehub/api/shares/{shareId}', { shareId })
                 )
                 this.shareDialogShares = this.shareDialogShares.filter(s => s.id !== String(shareId) && s.id !== shareId)
-                showSuccess(t('notehub', 'Freigabe entfernt'))
+                showSuccess(t('notehub', 'Share removed'))
                 // Update shared flag if no more shares
                 if (this.shareDialogShares.length === 0 && this.shareDialogNote) {
                     const idx = this.notes.findIndex(n => n.id === this.shareDialogNote.id)
@@ -2155,8 +2155,8 @@ export default {
                     }
                 }
             } catch (error) {
-                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unbekannter Fehler'
-                showError(t('notehub', 'Fehler beim Entfernen der Freigabe: ') + msg)
+                const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unknown error'
+                showError(t('notehub', 'Error removing share: ') + msg)
                 console.error('Share error:', error.response?.status, error.response?.data, error)
             }
         },
@@ -2175,7 +2175,7 @@ export default {
             if (!this.shareTagMode || !this.shareUserQuery) return
             const tagNotes = this.notes.filter(n => (n.tags || []).includes(this.shareTagMode))
             if (tagNotes.length === 0) {
-                showError(t('notehub', 'Keine Notizen mit diesem Tag'))
+                showError(t('notehub', 'No notes with this tag'))
                 return
             }
             this.shareLoading = true
@@ -2192,13 +2192,13 @@ export default {
                     }
                     success++
                 } catch (error) {
-                    const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unbekannter Fehler'
-                    showError(t('notehub', 'Fehler beim Teilen von Notiz ') + note.id + ': ' + msg)
+                    const msg = error?.response?.data?.error || error?.response?.data?.message || error.message || 'Unknown error'
+                    showError(t('notehub', 'Error sharing note ') + note.id + ': ' + msg)
                     console.error('Share error:', error.response?.status, error.response?.data, error)
                 }
             }
             this.shareLoading = false
-            showSuccess(t('notehub', '{count} Notizen geteilt').replace('{count}', success))
+            showSuccess(t('notehub', '{count} notes shared').replace('{count}', success))
             this.closeShareDialog()
         },
 
@@ -2957,6 +2957,13 @@ export default {
     color: var(--color-error);
     border-color: var(--color-error);
     background: var(--color-error-light, rgba(220, 53, 69, 0.1));
+}
+
+/* ── NC mobile: hamburger menu offset ─────────── */
+@media (max-width: 1023px) {
+    .notehub-title-input {
+        margin-left: 44px !important;
+    }
 }
 
 /* ── MOBILE RESPONSIVE ──────────────────────────── */
